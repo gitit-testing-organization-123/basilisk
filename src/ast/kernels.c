@@ -11,6 +11,7 @@ typedef struct {
   bool nolineno;
   int return_macro_index;
   Ast * macroscope;
+  bool glsl;
 } KernelData;
 
 /**
@@ -254,8 +255,10 @@ void kernel (Ast * n, Stack * stack, void * data)
   ## Assumes that pointers to structures are used through "inout" parameter */
 
   case sym_PTR_OP:
-    ast_terminal(n)->start[0] = '.';
-    ast_terminal(n)->start[1] = '\0';
+    if (d->glsl) {
+      ast_terminal(n)->start[0] = '.';
+      ast_terminal(n)->start[1] = '\0';
+    }
     break;
 
   /**
@@ -433,15 +436,16 @@ void kernel (Ast * n, Stack * stack, void * data)
 
   This forces arrays passed as parameters to functions to behave like
   in C99 i.e. passing by reference (inout) rather than by value.  */
-    
+
   case sym_parameter_declaration:
-    if (ast_schema (n, sym_parameter_declaration,
-		    1, sym_declarator,
-		    0, sym_direct_declarator,
-		    2, sym_assignment_expression))
+    if (d->glsl &&
+        ast_schema (n, sym_parameter_declaration,
+                    1, sym_declarator,
+                    0, sym_direct_declarator,
+                    2, sym_assignment_expression))
       ast_before (n, "inout ");
     break;
-    
+
   /**
   ## Cast expressions */
 
@@ -481,7 +485,8 @@ void kernel (Ast * n, Stack * stack, void * data)
       ast_after (identifier, "[2]"); // fixme: need to set the correct fixed size
       //      ast_print_tree (ast_ancestor (n, 2), stderr, 0, 0, -1);
     }
-    else if ((identifier = ast_schema (ast_ancestor (n, 2), sym_parameter_declaration,
+    else if (d->glsl &&
+             (identifier = ast_schema (ast_ancestor (n, 2), sym_parameter_declaration,
 				       1, sym_declarator,
 				       0, sym_pointer,
 				       0, token_symbol ('*'))) &&
@@ -500,7 +505,6 @@ void kernel (Ast * n, Stack * stack, void * data)
       ast_before (type->child[0], "inout ");
       ast_terminal (identifier)->start[0] = '\0';
     }
-    
     break;
   }
 
@@ -545,7 +549,7 @@ void kernel (Ast * n, Stack * stack, void * data)
     break;
   }
 
-  case sym_unary_operator: {
+  case sym_unary_operator: if (d->glsl) {
     
     /**
     ## Dereference of "inout" parameters */
@@ -585,7 +589,7 @@ void kernel (Ast * n, Stack * stack, void * data)
     }
     break;
   }
-    
+
   case sym_function_call: {
     Ast * identifier = ast_function_call_identifier (n);
     if (!identifier) break;
@@ -733,12 +737,12 @@ static void postmacros (Ast * n, Stack * stack, void * data)
   }
 }
 
-char * ast_kernel (Ast * n, char * argument, bool nolineno, Ast * macroscope)
+char * ast_kernel (Ast * n, char * argument, bool nolineno, bool glsl, Ast * macroscope)
 {
   AstRoot * root = ast_get_root (n);
   Stack * stack = root->stack;
   stack_push (stack, &n);
-  KernelData d = {0, nolineno, 0, macroscope};
+  KernelData d = {0, nolineno, 0, macroscope, glsl};
   Ast * statement = n->sym == sym_function_definition ?
     ast_copy (n) : ast_copy (ast_child (n, sym_statement));
   ast_traverse (statement, stack, postmacros, &d);

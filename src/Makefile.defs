@@ -45,6 +45,12 @@ clean:
 %.gpu.s.d: CFLAGS += -grid=gpu/multigrid
 %.gpu.tst: CFLAGS += -grid=gpu/multigrid
 
+%.cuda.c: %.c
+	ln -s -f $< $@
+%.cuda.s:   CFLAGS += -grid=cuda/multigrid
+%.cuda.s.d: CFLAGS += -grid=cuda/multigrid
+%.cuda.tst: CFLAGS += -grid=cuda/multigrid
+
 %.CADNA.c: %.c
 	ln -s -f $< $@
 

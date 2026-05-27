@@ -4,7 +4,8 @@
 # define SINGLE_PRECISION 1
 #endif
 #define _GPU 1
-#define GRIDNAME "Multigrid (GPU)"
+#define _CUDA 1
+#define GRIDNAME "Multigrid (cuda)"
 #define GRIDPARENT Multigrid
 #define shift_level(d) (multigrid->shift[d])
 #define field_size() (multigrid->shift[depth() + 1])
@@ -30,9 +31,9 @@ static bool _gpu_done_ = false;
 
 #include "../multigrid.h"
 #include "../stencils.h"
-#include "gpu.h"
+#include "../gpu/gpu.h"
 #include "../multigrid-common.h"
-#include "cuda.h"
+#include "backend.h"
 
 static void cuda_multigrid_methods()
 {
@@ -40,4 +41,4 @@ static void cuda_multigrid_methods()
   boundary_level = gpu_boundary_level;
 }
 
-#include "grid.h"
+#include "grid.h" // fixme: should be ../gpu/grid.h
