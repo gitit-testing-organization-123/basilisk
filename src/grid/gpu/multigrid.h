@@ -4,7 +4,7 @@
 # define SINGLE_PRECISION 1
 #endif
 #define _GPU 1
-#define GRIDNAME "Multigrid (GPU)"
+#define GRIDNAME "Multigrid (gpu)"
 #define GRIDPARENT Multigrid
 #define shift_level(d) (multigrid->shift[d])
 #define field_size() (multigrid->shift[depth() + 1])
@@ -32,6 +32,7 @@ static bool _gpu_done_ = false;
 #include "../stencils.h"
 #include "gpu.h"
 #include "../multigrid-common.h"
+#include "backend.h"
 
 static void gpu_multigrid_methods()
 {

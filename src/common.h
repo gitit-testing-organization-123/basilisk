@@ -15,6 +15,7 @@ macro number clamp (number x, number a, number b) {
 }
 
 #define swap(type,a,b) do { type _tmp_ = a; a = b; b = _tmp_; } while(false)
+#define device_synchronize()
 
 #include "grid/config.h"
 

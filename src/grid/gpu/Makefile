@@ -2,14 +2,17 @@
 
 CFLAGS += -I.. -O2
 
-all: libgpu.a
+all: libgpu.a liberrors.a
 
 # uncomment if errors.lex is modified
 # errors.c: errors.lex
 #	flex -P gpu_errors -o errors.c errors.lex
 
-libgpu.a: errors.o glad.o
-	ar cr libgpu.a errors.o glad.o
+libgpu.a: glad.o
+	ar cr libgpu.a glad.o
+
+liberrors.a: errors.o
+	ar cr liberrors.a errors.o
 
 check:
 
