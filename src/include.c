@@ -2789,11 +2789,12 @@ char * stripslash (char * path)
 
 static int is_code (const char * file)
 {
-  // check whether the basename has a .c or .h extension
-  const char * base = strrchr (file, '/');
-  base = base ? base + 1 : file;
-  const char * s = strrchr (base, '.');
-  return s && (!strcmp (s, ".c") || !strcmp (s, ".h"));
+  // check whether file has a .c or .h extension
+  int len = strlen (file);
+  if (len < 2)
+    return 0;
+  char * s = file + len - 2;
+  return !strcmp (s, ".c") || !strcmp (s, ".h");
 }
 
 static int include (char * file, FILE * fin, FILE * fout)
@@ -2915,7 +2916,7 @@ void includes (int argc, char ** argv,
       output = argv[++i];
     else if (!strncmp (argv[i], "-I", 2))
       prepend_path (argv[i] + 2);
-    else if (argv[i][0] != '-' && \
+    else if (argv[i][0] != '-' &&
 	     (tags || !strcmp (&argv[i][strlen(argv[i]) - 2], ".c"))) {
       if (file) {
 	fprintf (stderr, "usage: include [OPTIONS] FILE.c\n");
