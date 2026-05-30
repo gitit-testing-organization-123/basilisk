@@ -96,7 +96,7 @@ Shader * load_normal_shader (const char * fs)
     if (logSize > 1) {
       char * log = (char *) malloc (logSize);
       NVRTC_CHECK (nvrtcGetProgramLog (prog, log));
-      fputs (log, stderr);
+      // fputs (log, stderr);
       char * error = gpu_errors (log, fs, NULL, "CUDA");
       fputs (error, stderr);
       sysfree (error);
