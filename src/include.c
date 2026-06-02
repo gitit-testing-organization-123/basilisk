@@ -1,6 +1,6 @@
-#line 2 "include.c"
+#line 1 "include.c"
 
-#line 4 "include.c"
+#line 3 "include.c"
 
 #define  YY_INT_ALIGNED short int
 
@@ -1117,8 +1117,8 @@ char *yytext;
 	fputc ('\n', myout);
     }
   }
+#line 1120 "include.c"
 #line 1121 "include.c"
-#line 1122 "include.c"
 
 #define INITIAL 0
 
@@ -1347,7 +1347,7 @@ YY_DECL
 #line 200 "include.lex"
 
 
-#line 1351 "include.c"
+#line 1350 "include.c"
 
 	while ( /*CONSTCOND*/1 )		/* loops until end-of-file is reached */
 		{
@@ -1731,7 +1731,7 @@ YY_RULE_SETUP
 #line 416 "include.lex"
 ECHO;
 	YY_BREAK
-#line 1735 "include.c"
+#line 1734 "include.c"
 			case YY_STATE_EOF(INITIAL):
 				yyterminate();
 
@@ -2789,11 +2789,11 @@ char * stripslash (char * path)
 
 static int is_code (const char * file)
 {
-  // check whether file has a .c or .h extension
-  char * s = strstr (file, ".c");
-  if (!s)
-    s = strstr (file, ".h");
-  return s && (s[2] == '\0' || s[2] == '.');
+  // check whether the basename has a .c or .h extension
+  const char * base = strrchr (file, '/');
+  base = base ? base + 1 : file;
+  const char * s = strrchr (base, '.');
+  return s && (!strcmp (s, ".c") || !strcmp (s, ".h"));
 }
 
 static int include (char * file, FILE * fin, FILE * fout)
