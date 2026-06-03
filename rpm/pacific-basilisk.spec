@@ -46,6 +46,13 @@ Basilisk
 %license src/COPYING
 %{_includedir}/basilisk/*
 %{_bindir}/qcc
+%{_bindir}/bview2D
+%{_bindir}/bview2Dm
+%{_bindir}/bview3D
+%{_libdir}/libfb_tiny.a
+%{_libdir}/libglutils.a
+%{_libdir}/libtinyrenderer.a
+%{_libdir}/libwsserver.a
 %{_libdir}/cmake/basilisk/*
 
 %changelog

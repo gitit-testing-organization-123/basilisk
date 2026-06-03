@@ -1,3 +1,10 @@
 usr/bin/qcc
+usr/bin/bview2D
+usr/bin/bview2Dm
+usr/bin/bview3D
 usr/include/basilisk/* 
+usr/lib/*/libfb_tiny.a
+usr/lib/*/libglutils.a
+usr/lib/*/libtinyrenderer.a
+usr/lib/*/libwsserver.a
 usr/lib/*/cmake/basilisk/*
