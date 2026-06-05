@@ -35,13 +35,13 @@
 26) 6 1
 26a) 3 1
 26b) 3 0.75
-# 9 shaders
+# 8 shaders
 26c) 262656 1
-# 3 shaders
+# 1 shaders
 26e) 1 42
 # 2 shaders
 26d) 131584 1
-# 3 shaders
+# 1 shaders
 27) -1 -1
 # 1 shaders
 28) 0.125 0.125 0.015625
@@ -205,4 +205,4 @@
 35) 56
 # 8 shaders
 sp: -0.499195 0.00000 0.499195
-# 11 shaders
+# 6 shaders
