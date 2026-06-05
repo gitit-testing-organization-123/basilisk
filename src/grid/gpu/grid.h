@@ -359,6 +359,7 @@ To maximize performance, here are a few tips and observations:
 * [Test cases on GPUs](/src/test/README#gpu-tests)
 * [GPU benchmarks](Benchmarks.md)
 * [Computation kernels](/src/ast/kernels.c)
+* [An experimental CUDA driver](/src/grid/cuda/cuda.c)
 
 # Implementation */
 

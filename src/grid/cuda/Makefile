@@ -1,12 +1,12 @@
 .PHONY: all clean
 
-CFLAGS += -O2
+CFLAGS += -I$(BASILISK) -I.. -DSINGLE_PRECISION -O2
 
-all: libreduce.a
+all: libbuda.a
 
-libreduce.a: reduce.o
-	ar cr libreduce.a reduce.o
+libbuda.a: cuda.o
+	ar cr libbuda.a cuda.o
 
-reduce.o: reduce.h
+cuda.o: ../gpu/backend.h cuda.c
 
 include ../../Makefile.defs
