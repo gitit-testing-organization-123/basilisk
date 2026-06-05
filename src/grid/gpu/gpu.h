@@ -138,17 +138,11 @@ macro2 foreach_level_or_leaf_stencil (int _level, char flags, Reduce reductions,
     {...}
 }
 
-typedef enum {
-  GPU_READ, GPU_WRITE
-} SyncMode;
-
-static void gpu_cpu_sync_scalar (scalar s, char * sep, SyncMode mode);
-
 void realloc_scalar_gpu (int size)
 {
   realloc_scalar (size);
-  void realloc_ssbo();
-  realloc_ssbo();
+  void realloc_ssbo (size_t);
+  realloc_ssbo (field_size());
 }
 
 void gpu_boundary_level (scalar * list, int l)
@@ -165,24 +159,3 @@ void gpu_boundary_level (scalar * list, int l)
 }
 
 #define realloc_scalar(size) realloc_scalar_gpu (size)
-
-// fixme: for the moment only 'const int' are considered, this could be generalised
-#define IS_EXTERNAL_CONSTANT(g) ((g)->constant && (g)->type == sym_INT && !(g)->data)
-#define EXTERNAL_NAME(g) (g)->global == 2 ? "_loc_" : "", (g)->name, (g)->reduct ? "_in_" : ""
-
-static char * str_append_array (char * dst, const char * list[])
-{
-  int empty = (dst == NULL);
-  int len = empty ? 0 : strlen (dst);
-  for (const char ** s = list; *s != NULL; s++)
-    len += strlen (*s);
-  dst = (char *) sysrealloc (dst, len + 1);
-  if (empty) dst[0] = '\0';
-  for (const char ** s = list; *s != NULL; s++)
-    strcat (dst, *s);
-  return dst;
-}
-
-#define str_append(dst, ...) str_append_array (dst, (const char *[]){__VA_ARGS__, NULL})
-#define xstr(a) str(a)
-#define str(a) #a

@@ -1,6 +1,6 @@
 .PHONY: all clean
 
-CFLAGS += -I.. -O2
+CFLAGS += -I$(BASILISK) -I.. -DSINGLE_PRECISION -O2
 
 all: libgpu.a liberrors.a
 
@@ -8,11 +8,13 @@ all: libgpu.a liberrors.a
 # errors.c: errors.lex
 #	flex -P gpu_errors -o errors.c errors.lex
 
-libgpu.a: glad.o
-	ar cr libgpu.a glad.o
+libgpu.a: glad.o opengl.o
+	ar cr libgpu.a glad.o opengl.o
 
 liberrors.a: errors.o
 	ar cr liberrors.a errors.o
+
+opengl.o: backend.h opengl.c reduction.c
 
 check:
 

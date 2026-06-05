@@ -34,6 +34,25 @@ static bool _gpu_done_ = false;
 #include "../multigrid-common.h"
 #include "backend.h"
 
+typedef struct {
+  GRIDPARENT parent;
+  khash_t(INT) * shaders;
+  GPUData * data;
+} GridGPU;
+
+@ifndef tracing
+  @ def tracing(func, file, line) do {
+    gpu_synchronize();
+    tracing(func, file, line);
+  } while(0) @
+  @ def end_tracing(func, file, line) do {
+    gpu_synchronize();
+    end_tracing(func, file, line);
+  } while(0) @
+@endif
+
+#pragma autolink -L$BASILISK/grid/gpu -lgpu -lerrors -lglfw -ldl
+
 static void gpu_multigrid_methods()
 {
   multigrid_methods();
