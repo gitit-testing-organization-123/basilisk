@@ -17,13 +17,13 @@ export CC
 export AWK
 QCC = $(BASILISK)/qcc
 
-check: $(subst .c,.tst,$(filter-out $(TESTS),$(filter-out $(EXCLUDE),$(ALLTESTS)))) Makefile.deps
+check: $(patsubst %.c,%.tst,$(filter-out $(TESTS),$(filter-out $(EXCLUDE),$(ALLTESTS)))) Makefile.deps
 
-compile: $(subst .c,.s,$(filter-out $(TESTS),$(filter-out $(EXCLUDE),$(ALLTESTS)))) Makefile.deps
+compile: $(patsubst %.c,%.s,$(filter-out $(TESTS),$(filter-out $(EXCLUDE),$(ALLTESTS)))) Makefile.deps
 
-tags: $(subst .page,.tags,$(ALLPAGES))
+tags: $(patsubst %.page,%.tags,$(ALLPAGES))
 
-itags: $(subst .page,.itags,$(filter %.h.page, $(ALLPAGES)))
+itags: $(patsubst %.page,%.itags,$(filter %.h.page, $(ALLPAGES)))
 
 clean:
 	rm -f *.o *.s *.*tst *.d *.prof *.itags Makefile.deps Makefile.tests
@@ -149,7 +149,7 @@ clean:
 %.tags: % $(QCC)
 	$(QCC) $(CFLAGS) -tags $<
 
-%.itags: %.tags $(subst .page,.tags,$(ALLPAGES)) $(BASILISK)/includedin.sh
+%.itags: %.tags $(patsubst %.page,%.tags,$(ALLPAGES)) $(BASILISK)/includedin.sh
 	sh $(BASILISK)/includedin.sh $* > $@
 	rm -f $*.html
 
@@ -162,8 +162,8 @@ _src: $(patsubst %,_%, $(filter-out $(TESTS),$(filter-out $(EXCLUDE),$(ALLTESTS)
 # lists external symbols of executables
 extern = nm -u $(1) | sed -n 's/^[ ]*U \(.*\)/\1/p' | sort | uniq
 
-whitelist: $(subst .c,.exe,$(filter-out $(EXCLUDE),$(ALLTESTS))) \
-	$(subst .ctst,.cexe,$(SPECIAL_TESTS))
+whitelist: $(patsubst %.c,%.exe,$(filter-out $(EXCLUDE),$(ALLTESTS))) \
+	$(patsubst %.ctst,%.cexe,$(SPECIAL_TESTS))
 	@echo "updating whitelist"
 	@$(call extern,$^) > whitelist
 
@@ -229,8 +229,8 @@ Makefile.tests: $(BASILISK)/tests.sh $(wildcard Makefile)
 	$(QCC) $(CFLAGS) -MD -tags -o $@ $<
 
 Makefile.deps: 	Makefile.tests \
-		$(subst .c,.s.d,$(filter-out $(EXCLUDE),$(ALLTESTS) $(TESTS))) \
-		$(subst .page,.tags.d,$(ALLPAGES))
+		$(patsubst %.c,%.s.d,$(filter-out $(EXCLUDE),$(ALLTESTS) $(TESTS))) \
+		$(patsubst %.page,%.tags.d,$(ALLPAGES))
 	@echo "updating Makefile.deps"
 	@cat /dev/null $^ > Makefile.deps
 
