@@ -84,25 +84,25 @@ static hipDeviceptr_t ssbo = 0;
 static hipDevice_t dev = 0;
 static hipCtx_t ctx = 0;
 
-#define CUDA_CHECK(x)                                                   \
+#define HIP_CHECK(x)                                                    \
   do {                                                                  \
-    hipError_t err = (x);                                                 \
-    if (err != hipSuccess) {                                          \
-      const char *msg;                                                  \
-      hipDrvGetErrorName(err, &msg);                                        \
-      fprintf(stderr, "%s:%d: CUDA error: %s\n", __FILE__, __LINE__, msg); \
+    hipError_t err = (x);                                               \
+    if (err != hipSuccess) {                                            \
+      const char *msg =                                                 \
+        hipGetErrorName(err);                                           \
+      fprintf(stderr, "%s:%d: HIP error: %s\n", __FILE__, __LINE__, msg); \
       exit(1);                                                          \
     }                                                                   \
   } while(0)
 
-#define NVRTC_CHECK(x)                          \
-  do {                                          \
-    hiprtcResult err = (x);                      \
-    if (err != HIPRTC_SUCCESS) {                 \
-      fprintf(stderr, "%s:%d: NVRTC error: %s\n", __FILE__, __LINE__,   \
-              hiprtcGetErrorString(err));        \
-      exit(1);                                  \
-    }                                           \
+#define HIPRTC_CHECK(x)                                                 \
+  do {                                                                  \
+    hiprtcResult err = (x);                                             \
+    if (err != HIPRTC_SUCCESS) {                                        \
+      fprintf(stderr, "%s:%d: HIPRTC error: %s\n", __FILE__, __LINE__,  \
+              hiprtcGetErrorString(err));                               \
+      exit(1);                                                          \
+    }                                                                   \
   } while(0)
 
 typedef struct {
@@ -131,10 +131,10 @@ void architecture (char * arch)
 {
   int major, minor;
   hipDevice_t cuDevice;
-  CUDA_CHECK (hipDeviceGet(&cuDevice, 0));
-  CUDA_CHECK (hipDeviceGetAttribute (&major, hipDeviceAttributeComputeCapabilityMajor,
+  HIP_CHECK (hipDeviceGet(&cuDevice, 0));
+  HIP_CHECK (hipDeviceGetAttribute (&major, hipDeviceAttributeComputeCapabilityMajor,
                                     cuDevice));
-  CUDA_CHECK (hipDeviceGetAttribute (&minor, hipDeviceAttributeComputeCapabilityMinor,
+  HIP_CHECK (hipDeviceGetAttribute (&minor, hipDeviceAttributeComputeCapabilityMinor,
                                     cuDevice));
   sprintf (arch, "--gpu-architecture=compute_%d%d", major, minor);
 }
@@ -144,12 +144,12 @@ Shader * load_normal_shader (const char * fs)
   //  fputs (fs, stderr);
   
   hiprtcProgram prog;
-  NVRTC_CHECK(hiprtcCreateProgram (&prog, fs,
-                                  "kernel.cu",
-                                  0,
-                                  NULL,
-                                  NULL
-                                  ));
+  HIPRTC_CHECK(hiprtcCreateProgram (&prog, fs,
+                                    "kernel.cu",
+                                    0,
+                                    NULL,
+                                    NULL
+                                    ));
   char arch[] = "--gpu-architecture=compute_86";
   architecture (arch);
   const char *opts[] = {
@@ -171,12 +171,12 @@ Shader * load_normal_shader (const char * fs)
 
   if (compile_res != HIPRTC_SUCCESS) {
     size_t logSize;
-    NVRTC_CHECK (hiprtcGetProgramLogSize (prog, &logSize));
+    HIPRTC_CHECK (hiprtcGetProgramLogSize (prog, &logSize));
     if (logSize > 1) {
       char * log = (char *) malloc (logSize);
-      NVRTC_CHECK (hiprtcGetProgramLog (prog, log));
+      HIPRTC_CHECK (hiprtcGetProgramLog (prog, log));
       // fputs (log, stderr);
-      char * error = gpu_errors (log, fs, NULL, "CUDA");
+      char * error = gpu_errors (log, fs, NULL, "HIP");
       fputs (error, stderr);
       free (error);
       free (log);
@@ -189,18 +189,18 @@ Shader * load_normal_shader (const char * fs)
   // ------------------------------------------------------------
 
   size_t ptxSize;
-  NVRTC_CHECK (hiprtcGetCodeSize (prog, &ptxSize));
+  HIPRTC_CHECK (hiprtcGetCodeSize (prog, &ptxSize));
   char ptx[ptxSize];
-  NVRTC_CHECK (hiprtcGetCode (prog, ptx));
-  NVRTC_CHECK (hiprtcDestroyProgram (&prog));
+  HIPRTC_CHECK (hiprtcGetCode (prog, ptx));
+  HIPRTC_CHECK (hiprtcDestroyProgram (&prog));
 
   // ------------------------------------------------------------
   // Load PTX module
   // ------------------------------------------------------------
 
   Shader * shader = calloc (1, sizeof (Shader));
-  CUDA_CHECK (hipModuleLoadData (&shader->module, ptx));
-  CUDA_CHECK (hipModuleGetFunction (&shader->kernel, shader->module, "kernel"));
+  HIP_CHECK (hipModuleLoadData (&shader->module, ptx));
+  HIP_CHECK (hipModuleGetFunction (&shader->kernel, shader->module, "kernel"));
   return shader;
 }
 
@@ -208,9 +208,9 @@ bool gpu_init_context (GPUData ** data)
 {
   bool initialized = ctx;
   if (!initialized) {
-    CUDA_CHECK (hipInit (0));
-    CUDA_CHECK (hipDeviceGet (&dev, 0));
-    CUDA_CHECK (hipCtxCreate (&ctx, 0, dev));
+    HIP_CHECK (hipInit (0));
+    HIP_CHECK (hipDeviceGet (&dev, 0));
+    HIP_CHECK (hipCtxCreate (&ctx, 0, dev));
   }
   *data = NULL;
   return !initialized;
@@ -219,7 +219,7 @@ bool gpu_init_context (GPUData ** data)
 void gpu_free_context (GPUData * data)
 {
   if (ssbo) {
-    CUDA_CHECK (hipFree (ssbo));
+    HIP_CHECK (hipFree (ssbo));
     ssbo = 0;
   }
   GPUContext.current_size = 0;
@@ -232,10 +232,10 @@ void realloc_ssbo (size_t field_size)
   size_t totalsize = field_size*datasize;
   assert (totalsize > GPUContext.current_size);
   hipDeviceptr_t ptr;
-  CUDA_CHECK (hipMalloc (&ptr, totalsize)); // fixme: allocates memory twice
+  HIP_CHECK (hipMalloc (&ptr, totalsize)); // fixme: allocates memory twice
   if (GPUContext.current_size > 0) {
-    CUDA_CHECK (hipMemcpyDtoD (ptr, ssbo, GPUContext.current_size));
-    CUDA_CHECK (hipFree (ssbo));
+    HIP_CHECK (hipMemcpyDtoD (ptr, ssbo, GPUContext.current_size));
+    HIP_CHECK (hipFree (ssbo));
   }
   ssbo = ptr;
   GPUContext.current_size = totalsize;
@@ -247,9 +247,9 @@ void gpu_cpu_sync_scalar (int i, int block, char * data, size_t field_size, Sync
   char * cd = data + offset;
   hipDeviceptr_t gd = ssbo + offset;
   if (mode == GPU_READ)
-    CUDA_CHECK (hipMemcpyDtoH (cd, gd, totalsize));
+    HIP_CHECK (hipMemcpyDtoH (cd, gd, totalsize));
   else if (mode == GPU_WRITE)
-    CUDA_CHECK (hipMemcpyHtoD (gd, cd, totalsize));
+    HIP_CHECK (hipMemcpyHtoD (gd, cd, totalsize));
   else
     assert (false);
 }
@@ -262,7 +262,7 @@ void reset_scalar (int i, int block, size_t field_size, double val)
   float fval = val;
   uint32_t bits;
   memcpy (&bits, &fval, sizeof(bits));
-  CUDA_CHECK (hipMemsetD32 (ssbo + offset, bits, totalsize/sizeof(float)));
+  HIP_CHECK (hipMemsetD32 (ssbo + offset, bits, totalsize/sizeof(float)));
 #else
   fprintf (stderr, "%s:%d: error: not implemented yet\n");
 #endif
@@ -278,13 +278,13 @@ void finalize_shader (Shader * shader, External * externals, External * merged,
   Get the SSBO pointer. */
 
   size_t size;
-  CUDA_CHECK (hipModuleGetGlobal(&shader->_data, &size, shader->module, "_data"));
+  HIP_CHECK (hipModuleGetGlobal(&shader->_data, &size, shader->module, "_data"));
   assert (size == sizeof (ssbo));
 
   /**
   Get the csOrigin pointer. */
 
-  CUDA_CHECK (hipModuleGetGlobal(&shader->csOrigin, &size, shader->module, "csOrigin"));
+  HIP_CHECK (hipModuleGetGlobal(&shader->csOrigin, &size, shader->module, "csOrigin"));
   assert (size == 2*sizeof (int));
   
   /**
@@ -385,7 +385,7 @@ void post_setup_shader (Shader * shader, External * externals)
   Set SSBO pointer. */
   
   assert (ssbo);
-  CUDA_CHECK (hipMemcpyHtoD (shader->_data, &ssbo, sizeof (ssbo)));
+  HIP_CHECK (hipMemcpyHtoD (shader->_data, &ssbo, sizeof (ssbo)));
 
   /**
   ## Set uniforms */
@@ -398,14 +398,14 @@ void post_setup_shader (Shader * shader, External * externals)
     }
     switch (g->type) {
     case sym_INT: case sym_FLOAT: case sym_VEC4: case sym_BOOL:
-      CUDA_CHECK (hipMemcpyHtoD (g->location, pointer, g->size));
+      HIP_CHECK (hipMemcpyHtoD (g->location, pointer, g->size));
       break;
     case sym_LONG: {
       int p[g->nd];
       long * data = pointer;
       for (int i = 0; i < g->nd; i++)
 	p[i] = data[i];
-      CUDA_CHECK (hipMemcpyHtoD (g->location, p, g->size));
+      HIP_CHECK (hipMemcpyHtoD (g->location, p, g->size));
       break;
     }
 #if SINGLE_PRECISION
@@ -414,12 +414,12 @@ void post_setup_shader (Shader * shader, External * externals)
       double * data = pointer;
       for (int i = 0; i < g->nd; i++)
 	p[i] = data[i];
-      CUDA_CHECK (hipMemcpyHtoD (g->location, p, g->size));
+      HIP_CHECK (hipMemcpyHtoD (g->location, p, g->size));
       break;
     }
 #else // DOUBLE_PRECISION
     case sym_DOUBLE: case sym__COORD: case sym_COORD:
-      CUDA_CHECK (hipMemcpyHtoD (g->location, pointer, g->size));
+      HIP_CHECK (hipMemcpyHtoD (g->location, pointer, g->size));
       break;
 #endif // DOUBLE_PRECISION
     default:
@@ -441,12 +441,12 @@ int run_shader (const Shader * shader, const RegionParameters * region)
       (region->p.x - X0)/L0*Nl*Dimensions.x,
       (region->p.y - Y0)/L0*Nl*Dimensions.x
     };
-    CUDA_CHECK (hipMemcpyHtoD (shader->csOrigin, csOrigin, 2*sizeof(int)));
+    HIP_CHECK (hipMemcpyHtoD (shader->csOrigin, csOrigin, 2*sizeof(int)));
     assert (!GPUContext.fragment_shader);
-    CUDA_CHECK (hipModuleLaunchKernel (shader->kernel,
-                                1, 1, 1,
-                                1, 1, 1,
-                                0, 0, NULL, NULL));
+    HIP_CHECK (hipModuleLaunchKernel (shader->kernel,
+                                      1, 1, 1,
+                                      1, 1, 1,
+                                      0, 0, NULL, NULL));
   }
 
   /**
@@ -471,60 +471,60 @@ int run_shader (const Shader * shader, const RegionParameters * region)
 
   else {
     assert (!GPUContext.fragment_shader);
-    CUDA_CHECK (hipModuleLaunchKernel (shader->kernel,
-                                shader->ng[0], shader->ng[1], 1,
-                                shader->nwg[0], shader->nwg[1], 1,
-                                0, 0, NULL, NULL));
+    HIP_CHECK (hipModuleLaunchKernel (shader->kernel,
+                                      shader->ng[0], shader->ng[1], 1,
+                                      shader->nwg[0], shader->nwg[1], 1,
+                                      0, 0, NULL, NULL));
   }
   return Nl;
 }
 
 void gpu_free_solver (void)
 {
-  CUDA_CHECK (hipCtxSynchronize ());
-  CUDA_CHECK (hipCtxDestroy (ctx));
+  HIP_CHECK (hipCtxSynchronize ());
+  HIP_CHECK (hipCtxDestroy (ctx));
   ctx = NULL;
 }
 
 void gpu_synchronize()
 {
   if (ctx)
-    CUDA_CHECK (hipCtxSynchronize ());
+    HIP_CHECK (hipCtxSynchronize ());
 }
 
 
 static char kernel_source[] =
-"#define REDUCE(reduced,rhs) reduced += rhs                                          \n"
-"extern \"C\"\n"
-"__global__ void reduce (const float* input, float* output, int n){\n"
-"    __shared__ float sdata[256];                       \n"
-"    unsigned int tid = threadIdx.x;                    \n"
-"    unsigned int i = blockIdx.x * blockDim.x * 2 + tid;\n"
-"    float reduced = 0.0f;                              \n"
-"    if (i < n)                                         \n"
-"        REDUCE (reduced, input[i]);                    \n"
-"    if (i + blockDim.x < n)                            \n"
-"        REDUCE (reduced, input[i + blockDim.x]);       \n"
-"    sdata[tid] = reduced;                              \n"
-"    __syncthreads();                                   \n"
-"                                                       \n"
-"    for (unsigned int s = blockDim.x/2; s > 32; s >>= 1){\n"
-"        if (tid < s)                                    \n"
-"            REDUCE (sdata[tid], sdata[tid + s]);        \n"
-"        __syncthreads();                                \n"
-"    }                                                   \n"
-"    if (tid < 32) {                                     \n"
-"        volatile float* smem = sdata;                   \n"
-"        REDUCE (smem[tid], smem[tid + 32]);             \n"
-"        REDUCE (smem[tid], smem[tid + 16]);             \n"
-"        REDUCE (smem[tid], smem[tid + 8]);              \n"
-"        REDUCE (smem[tid], smem[tid + 4]);              \n"
-"        REDUCE (smem[tid], smem[tid + 2]);              \n"
-"        REDUCE (smem[tid], smem[tid + 1]);              \n"
-"    }                                                   \n"
-"    if (tid == 0)                                       \n"
-"        output[blockIdx.x] = sdata[0];                  \n"
-"}                                                       \n";
+  "#define REDUCE(reduced,rhs) reduced += rhs                                          \n"
+  "extern \"C\"\n"
+  "__global__ void reduce (const float* input, float* output, int n){\n"
+  "    __shared__ float sdata[256];                       \n"
+  "    unsigned int tid = threadIdx.x;                    \n"
+  "    unsigned int i = blockIdx.x * blockDim.x * 2 + tid;\n"
+  "    float reduced = 0.0f;                              \n"
+  "    if (i < n)                                         \n"
+  "        REDUCE (reduced, input[i]);                    \n"
+  "    if (i + blockDim.x < n)                            \n"
+  "        REDUCE (reduced, input[i + blockDim.x]);       \n"
+  "    sdata[tid] = reduced;                              \n"
+  "    __syncthreads();                                   \n"
+  "                                                       \n"
+  "    for (unsigned int s = blockDim.x/2; s > 32; s >>= 1){\n"
+  "        if (tid < s)                                    \n"
+  "            REDUCE (sdata[tid], sdata[tid + s]);        \n"
+  "        __syncthreads();                                \n"
+  "    }                                                   \n"
+  "    if (tid < 32) {                                     \n"
+  "        volatile float* smem = sdata;                   \n"
+  "        REDUCE (smem[tid], smem[tid + 32]);             \n"
+  "        REDUCE (smem[tid], smem[tid + 16]);             \n"
+  "        REDUCE (smem[tid], smem[tid + 8]);              \n"
+  "        REDUCE (smem[tid], smem[tid + 4]);              \n"
+  "        REDUCE (smem[tid], smem[tid + 2]);              \n"
+  "        REDUCE (smem[tid], smem[tid + 1]);              \n"
+  "    }                                                   \n"
+  "    if (tid == 0)                                       \n"
+  "        output[blockIdx.x] = sdata[0];                  \n"
+  "}                                                       \n";
 
 static hipFunction_t compile_kernel (const char * start, const char * op)
 {
@@ -536,8 +536,8 @@ static hipFunction_t compile_kernel (const char * start, const char * op)
   s += strlen ("float reduced = ");
   memcpy (s, start, strlen (start));
   s += strlen(start); while (*s != '\n') *s++ = ' '; 
-  NVRTC_CHECK (hiprtcCreateProgram (&prog, kernel_source, "reduce.cu",
-                                   0, NULL, NULL));
+  HIPRTC_CHECK (hiprtcCreateProgram (&prog, kernel_source, "reduce.cu",
+                                     0, NULL, NULL));
   char arch[] = "--gpu-architecture=compute_86";
   architecture (arch);
   const char* options[] = {
@@ -548,10 +548,10 @@ static hipFunction_t compile_kernel (const char * start, const char * op)
   if (hiprtcCompileProgram (prog, 3, options) != HIPRTC_SUCCESS) {
     fputs (kernel_source, stderr);
     size_t log_size;
-    NVRTC_CHECK (hiprtcGetProgramLogSize (prog, &log_size));
+    HIPRTC_CHECK (hiprtcGetProgramLogSize (prog, &log_size));
     if (log_size) {
       char * log = (char *)malloc (log_size);
-      NVRTC_CHECK (hiprtcGetProgramLog (prog, log));
+      HIPRTC_CHECK (hiprtcGetProgramLog (prog, log));
       fprintf (stderr, "%s:%d: %s\n", __FILE__, __LINE__, log);
       free (log);
     }
@@ -560,25 +560,25 @@ static hipFunction_t compile_kernel (const char * start, const char * op)
 
   /*    Extract PTX    */
   size_t ptx_size;
-  NVRTC_CHECK (hiprtcGetCodeSize (prog, &ptx_size));
+  HIPRTC_CHECK (hiprtcGetCodeSize (prog, &ptx_size));
   char * ptx = (char *) malloc (ptx_size);
-  NVRTC_CHECK (hiprtcGetCode (prog, ptx));
-  NVRTC_CHECK (hiprtcDestroyProgram (&prog));
+  HIPRTC_CHECK (hiprtcGetCode (prog, ptx));
+  HIPRTC_CHECK (hiprtcDestroyProgram (&prog));
 
   /*    Load module    */
   hipModule_t module;
-  CUDA_CHECK (hipModuleLoadData (&module, ptx));
+  HIP_CHECK (hipModuleLoadData (&module, ptx));
   free (ptx);
 
   hipFunction_t kernel;
-  CUDA_CHECK(hipModuleGetFunction (&kernel, module, "reduce"));
+  HIP_CHECK(hipModuleGetFunction (&kernel, module, "reduce"));
   return kernel;
 }
 
 static
 float cuda_reduce (hipDeviceptr_t d_input, const size_t N, const char op)
 {
-  /*    Compile kernel with NVRTC    */
+  /*    Compile kernel with HIPRTC    */
   
   hipFunction_t kernel;
   switch (op) {
@@ -611,11 +611,11 @@ float cuda_reduce (hipDeviceptr_t d_input, const size_t N, const char op)
   if (N > Np) {
     const size_t max_blocks = (N + 511)/512;
     if (d_output_a) {
-      CUDA_CHECK (hipFree (d_output_a));
-      CUDA_CHECK (hipFree (d_output_b));
+      HIP_CHECK (hipFree (d_output_a));
+      HIP_CHECK (hipFree (d_output_b));
     }
-    CUDA_CHECK (hipMalloc (&d_output_a, max_blocks*sizeof(float)));
-    CUDA_CHECK (hipMalloc (&d_output_b, max_blocks*sizeof(float)));
+    HIP_CHECK (hipMalloc (&d_output_a, max_blocks*sizeof(float)));
+    HIP_CHECK (hipMalloc (&d_output_b, max_blocks*sizeof(float)));
     Np = N;
   }
     
@@ -627,11 +627,11 @@ float cuda_reduce (hipDeviceptr_t d_input, const size_t N, const char op)
     const size_t threads = 256;
     size_t blocks = (current_n + threads*2 - 1)/(threads*2);
     void * args[] = {&input, &output, &current_n};
-    CUDA_CHECK (hipModuleLaunchKernel (kernel,
-                                blocks, 1, 1, threads,
-                                1, 1, 0, 0,
-                                args, NULL));
-    CUDA_CHECK (hipCtxSynchronize());
+    HIP_CHECK (hipModuleLaunchKernel (kernel,
+                                      blocks, 1, 1, threads,
+                                      1, 1, 0, 0,
+                                      args, NULL));
+    HIP_CHECK (hipCtxSynchronize());
     current_n = blocks;
     input = output;
     output = (output == d_output_a) ? d_output_b : d_output_a;
@@ -639,12 +639,12 @@ float cuda_reduce (hipDeviceptr_t d_input, const size_t N, const char op)
 
   /*        Copy result back        */  
   float gpu_reduce;
-  CUDA_CHECK (hipMemcpyDtoH (&gpu_reduce, input, sizeof(float)));
+  HIP_CHECK (hipMemcpyDtoH (&gpu_reduce, input, sizeof(float)));
 #if 0
   /*    Cleanup    */
-  CUDA_CHECK(hipFree(d_output_a));
-  CUDA_CHECK(hipFree(d_output_b));
-  CUDA_CHECK(hipModuleUnload(module));
+  HIP_CHECK(hipFree(d_output_a));
+  HIP_CHECK(hipFree(d_output_b));
+  HIP_CHECK(hipModuleUnload(module));
 #endif
   return gpu_reduce;
 }
