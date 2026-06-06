@@ -77,19 +77,19 @@ enum typedef_kind_t {
 
 #include "../gpu/backend.h"
 
-#include <cuda.h>
-#include <nvrtc.h>
+#include <hip/hip_runtime.h>
+#include <hip/hiprtc.h>
 
-static CUdeviceptr ssbo = 0;
-static CUdevice dev = 0;
-static CUcontext ctx = 0;
+static hipDeviceptr_t ssbo = 0;
+static hipDevice_t dev = 0;
+static hipCtx_t ctx = 0;
 
 #define CUDA_CHECK(x)                                                   \
   do {                                                                  \
-    CUresult err = (x);                                                 \
-    if (err != CUDA_SUCCESS) {                                          \
+    hipError_t err = (x);                                                 \
+    if (err != hipSuccess) {                                          \
       const char *msg;                                                  \
-      cuGetErrorName(err, &msg);                                        \
+      hipDrvGetErrorName(err, &msg);                                        \
       fprintf(stderr, "%s:%d: CUDA error: %s\n", __FILE__, __LINE__, msg); \
       exit(1);                                                          \
     }                                                                   \
@@ -97,16 +97,16 @@ static CUcontext ctx = 0;
 
 #define NVRTC_CHECK(x)                          \
   do {                                          \
-    nvrtcResult err = (x);                      \
-    if (err != NVRTC_SUCCESS) {                 \
+    hiprtcResult err = (x);                      \
+    if (err != HIPRTC_SUCCESS) {                 \
       fprintf(stderr, "%s:%d: NVRTC error: %s\n", __FILE__, __LINE__,   \
-              nvrtcGetErrorString(err));        \
+              hiprtcGetErrorString(err));        \
       exit(1);                                  \
     }                                           \
   } while(0)
 
 typedef struct {
-  CUdeviceptr location;
+  hipDeviceptr_t location;
   int type, nd, local;
   size_t size;
   void * pointer;
@@ -114,10 +114,10 @@ typedef struct {
 
 struct _Shader {
   unsigned ng[2], nwg[2];
-  CUdeviceptr _data, csOrigin;
+  hipDeviceptr_t _data, csOrigin;
   MyUniform * uniforms;
-  CUmodule module;
-  CUfunction kernel;
+  hipModule_t module;
+  hipFunction_t kernel;
 };
 
 void free_shader (Shader * s)
@@ -130,11 +130,11 @@ static
 void architecture (char * arch)
 {
   int major, minor;
-  CUdevice cuDevice;
-  CUDA_CHECK (cuDeviceGet(&cuDevice, 0));
-  CUDA_CHECK (cuDeviceGetAttribute (&major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
+  hipDevice_t cuDevice;
+  CUDA_CHECK (hipDeviceGet(&cuDevice, 0));
+  CUDA_CHECK (hipDeviceGetAttribute (&major, hipDeviceAttributeComputeCapabilityMajor,
                                     cuDevice));
-  CUDA_CHECK (cuDeviceGetAttribute (&minor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR,
+  CUDA_CHECK (hipDeviceGetAttribute (&minor, hipDeviceAttributeComputeCapabilityMinor,
                                     cuDevice));
   sprintf (arch, "--gpu-architecture=compute_%d%d", major, minor);
 }
@@ -143,8 +143,8 @@ Shader * load_normal_shader (const char * fs)
 {
   //  fputs (fs, stderr);
   
-  nvrtcProgram prog;
-  NVRTC_CHECK(nvrtcCreateProgram (&prog, fs,
+  hiprtcProgram prog;
+  NVRTC_CHECK(hiprtcCreateProgram (&prog, fs,
                                   "kernel.cu",
                                   0,
                                   NULL,
@@ -167,14 +167,14 @@ Shader * load_normal_shader (const char * fs)
 #endif
   };
 
-  nvrtcResult compile_res = nvrtcCompileProgram (prog, sizeof(opts)/sizeof(char *), opts);
+  hiprtcResult compile_res = hiprtcCompileProgram (prog, sizeof(opts)/sizeof(char *), opts);
 
-  if (compile_res != NVRTC_SUCCESS) {
+  if (compile_res != HIPRTC_SUCCESS) {
     size_t logSize;
-    NVRTC_CHECK (nvrtcGetProgramLogSize (prog, &logSize));
+    NVRTC_CHECK (hiprtcGetProgramLogSize (prog, &logSize));
     if (logSize > 1) {
       char * log = (char *) malloc (logSize);
-      NVRTC_CHECK (nvrtcGetProgramLog (prog, log));
+      NVRTC_CHECK (hiprtcGetProgramLog (prog, log));
       // fputs (log, stderr);
       char * error = gpu_errors (log, fs, NULL, "CUDA");
       fputs (error, stderr);
@@ -189,18 +189,18 @@ Shader * load_normal_shader (const char * fs)
   // ------------------------------------------------------------
 
   size_t ptxSize;
-  NVRTC_CHECK (nvrtcGetPTXSize (prog, &ptxSize));
+  NVRTC_CHECK (hiprtcGetCodeSize (prog, &ptxSize));
   char ptx[ptxSize];
-  NVRTC_CHECK (nvrtcGetPTX (prog, ptx));
-  NVRTC_CHECK (nvrtcDestroyProgram (&prog));
+  NVRTC_CHECK (hiprtcGetCode (prog, ptx));
+  NVRTC_CHECK (hiprtcDestroyProgram (&prog));
 
   // ------------------------------------------------------------
   // Load PTX module
   // ------------------------------------------------------------
 
   Shader * shader = calloc (1, sizeof (Shader));
-  CUDA_CHECK (cuModuleLoadData (&shader->module, ptx));
-  CUDA_CHECK (cuModuleGetFunction (&shader->kernel, shader->module, "kernel"));
+  CUDA_CHECK (hipModuleLoadData (&shader->module, ptx));
+  CUDA_CHECK (hipModuleGetFunction (&shader->kernel, shader->module, "kernel"));
   return shader;
 }
 
@@ -208,9 +208,9 @@ bool gpu_init_context (GPUData ** data)
 {
   bool initialized = ctx;
   if (!initialized) {
-    CUDA_CHECK (cuInit (0));
-    CUDA_CHECK (cuDeviceGet (&dev, 0));
-    CUDA_CHECK (cuCtxCreate (&ctx, 0, dev));
+    CUDA_CHECK (hipInit (0));
+    CUDA_CHECK (hipDeviceGet (&dev, 0));
+    CUDA_CHECK (hipCtxCreate (&ctx, 0, dev));
   }
   *data = NULL;
   return !initialized;
@@ -219,7 +219,7 @@ bool gpu_init_context (GPUData ** data)
 void gpu_free_context (GPUData * data)
 {
   if (ssbo) {
-    CUDA_CHECK (cuMemFree (ssbo));
+    CUDA_CHECK (hipFree (ssbo));
     ssbo = 0;
   }
   GPUContext.current_size = 0;
@@ -231,11 +231,11 @@ void realloc_ssbo (size_t field_size)
     return;
   size_t totalsize = field_size*datasize;
   assert (totalsize > GPUContext.current_size);
-  CUdeviceptr ptr;
-  CUDA_CHECK (cuMemAlloc (&ptr, totalsize)); // fixme: allocates memory twice
+  hipDeviceptr_t ptr;
+  CUDA_CHECK (hipMalloc (&ptr, totalsize)); // fixme: allocates memory twice
   if (GPUContext.current_size > 0) {
-    CUDA_CHECK (cuMemcpyDtoD (ptr, ssbo, GPUContext.current_size));
-    CUDA_CHECK (cuMemFree (ssbo));
+    CUDA_CHECK (hipMemcpyDtoD (ptr, ssbo, GPUContext.current_size));
+    CUDA_CHECK (hipFree (ssbo));
   }
   ssbo = ptr;
   GPUContext.current_size = totalsize;
@@ -245,11 +245,11 @@ void gpu_cpu_sync_scalar (int i, int block, char * data, size_t field_size, Sync
 {
   size_t size = field_size*sizeof(real), offset = i*size, totalsize = block*size;
   char * cd = data + offset;
-  CUdeviceptr gd = ssbo + offset;
+  hipDeviceptr_t gd = ssbo + offset;
   if (mode == GPU_READ)
-    CUDA_CHECK (cuMemcpyDtoH (cd, gd, totalsize));
+    CUDA_CHECK (hipMemcpyDtoH (cd, gd, totalsize));
   else if (mode == GPU_WRITE)
-    CUDA_CHECK (cuMemcpyHtoD (gd, cd, totalsize));
+    CUDA_CHECK (hipMemcpyHtoD (gd, cd, totalsize));
   else
     assert (false);
 }
@@ -262,7 +262,7 @@ void reset_scalar (int i, int block, size_t field_size, double val)
   float fval = val;
   uint32_t bits;
   memcpy (&bits, &fval, sizeof(bits));
-  CUDA_CHECK (cuMemsetD32 (ssbo + offset, bits, totalsize/sizeof(float)));
+  CUDA_CHECK (hipMemsetD32 (ssbo + offset, bits, totalsize/sizeof(float)));
 #else
   fprintf (stderr, "%s:%d: error: not implemented yet\n");
 #endif
@@ -278,13 +278,13 @@ void finalize_shader (Shader * shader, External * externals, External * merged,
   Get the SSBO pointer. */
 
   size_t size;
-  CUDA_CHECK (cuModuleGetGlobal(&shader->_data, &size, shader->module, "_data"));
+  CUDA_CHECK (hipModuleGetGlobal(&shader->_data, &size, shader->module, "_data"));
   assert (size == sizeof (ssbo));
 
   /**
   Get the csOrigin pointer. */
 
-  CUDA_CHECK (cuModuleGetGlobal(&shader->csOrigin, &size, shader->module, "csOrigin"));
+  CUDA_CHECK (hipModuleGetGlobal(&shader->csOrigin, &size, shader->module, "csOrigin"));
   assert (size == 2*sizeof (int));
   
   /**
@@ -317,9 +317,9 @@ void finalize_shader (Shader * shader, External * externals, External * merged,
 #if 0      
       int location = glGetUniformLocation (s->id, name);
 #else
-      CUdeviceptr location = 0;
+      hipDeviceptr_t location = 0;
       size_t size;
-      cuModuleGetGlobal (&location, &size, shader->module, name);
+      hipModuleGetGlobal (&location, &size, shader->module, name);
 #endif
       if (location) {
         //        fprintf (stderr, "%s %d %ld\n", name, g->type, size);
@@ -385,7 +385,7 @@ void post_setup_shader (Shader * shader, External * externals)
   Set SSBO pointer. */
   
   assert (ssbo);
-  CUDA_CHECK (cuMemcpyHtoD (shader->_data, &ssbo, sizeof (ssbo)));
+  CUDA_CHECK (hipMemcpyHtoD (shader->_data, &ssbo, sizeof (ssbo)));
 
   /**
   ## Set uniforms */
@@ -398,14 +398,14 @@ void post_setup_shader (Shader * shader, External * externals)
     }
     switch (g->type) {
     case sym_INT: case sym_FLOAT: case sym_VEC4: case sym_BOOL:
-      CUDA_CHECK (cuMemcpyHtoD (g->location, pointer, g->size));
+      CUDA_CHECK (hipMemcpyHtoD (g->location, pointer, g->size));
       break;
     case sym_LONG: {
       int p[g->nd];
       long * data = pointer;
       for (int i = 0; i < g->nd; i++)
 	p[i] = data[i];
-      CUDA_CHECK (cuMemcpyHtoD (g->location, p, g->size));
+      CUDA_CHECK (hipMemcpyHtoD (g->location, p, g->size));
       break;
     }
 #if SINGLE_PRECISION
@@ -414,12 +414,12 @@ void post_setup_shader (Shader * shader, External * externals)
       double * data = pointer;
       for (int i = 0; i < g->nd; i++)
 	p[i] = data[i];
-      CUDA_CHECK (cuMemcpyHtoD (g->location, p, g->size));
+      CUDA_CHECK (hipMemcpyHtoD (g->location, p, g->size));
       break;
     }
 #else // DOUBLE_PRECISION
     case sym_DOUBLE: case sym__COORD: case sym_COORD:
-      CUDA_CHECK (cuMemcpyHtoD (g->location, pointer, g->size));
+      CUDA_CHECK (hipMemcpyHtoD (g->location, pointer, g->size));
       break;
 #endif // DOUBLE_PRECISION
     default:
@@ -441,9 +441,9 @@ int run_shader (const Shader * shader, const RegionParameters * region)
       (region->p.x - X0)/L0*Nl*Dimensions.x,
       (region->p.y - Y0)/L0*Nl*Dimensions.x
     };
-    CUDA_CHECK (cuMemcpyHtoD (shader->csOrigin, csOrigin, 2*sizeof(int)));
+    CUDA_CHECK (hipMemcpyHtoD (shader->csOrigin, csOrigin, 2*sizeof(int)));
     assert (!GPUContext.fragment_shader);
-    CUDA_CHECK (cuLaunchKernel (shader->kernel,
+    CUDA_CHECK (hipModuleLaunchKernel (shader->kernel,
                                 1, 1, 1,
                                 1, 1, 1,
                                 0, 0, NULL, NULL));
@@ -471,7 +471,7 @@ int run_shader (const Shader * shader, const RegionParameters * region)
 
   else {
     assert (!GPUContext.fragment_shader);
-    CUDA_CHECK (cuLaunchKernel (shader->kernel,
+    CUDA_CHECK (hipModuleLaunchKernel (shader->kernel,
                                 shader->ng[0], shader->ng[1], 1,
                                 shader->nwg[0], shader->nwg[1], 1,
                                 0, 0, NULL, NULL));
@@ -481,15 +481,15 @@ int run_shader (const Shader * shader, const RegionParameters * region)
 
 void gpu_free_solver (void)
 {
-  CUDA_CHECK (cuCtxSynchronize ());
-  CUDA_CHECK (cuCtxDestroy (ctx));
+  CUDA_CHECK (hipCtxSynchronize ());
+  CUDA_CHECK (hipCtxDestroy (ctx));
   ctx = NULL;
 }
 
 void gpu_synchronize()
 {
   if (ctx)
-    CUDA_CHECK (cuCtxSynchronize ());
+    CUDA_CHECK (hipCtxSynchronize ());
 }
 
 
@@ -526,9 +526,9 @@ static char kernel_source[] =
 "        output[blockIdx.x] = sdata[0];                  \n"
 "}                                                       \n";
 
-static CUfunction compile_kernel (const char * start, const char * op)
+static hipFunction_t compile_kernel (const char * start, const char * op)
 {
-  nvrtcProgram prog;
+  hiprtcProgram prog;
   char * s = kernel_source + strlen("#define REDUCE(reduced,rhs) ");
   memcpy (s, op, strlen (op));
   s += strlen(op); while (*s != '\n') *s++ = ' ';
@@ -536,7 +536,7 @@ static CUfunction compile_kernel (const char * start, const char * op)
   s += strlen ("float reduced = ");
   memcpy (s, start, strlen (start));
   s += strlen(start); while (*s != '\n') *s++ = ' '; 
-  NVRTC_CHECK (nvrtcCreateProgram (&prog, kernel_source, "reduce.cu",
+  NVRTC_CHECK (hiprtcCreateProgram (&prog, kernel_source, "reduce.cu",
                                    0, NULL, NULL));
   char arch[] = "--gpu-architecture=compute_86";
   architecture (arch);
@@ -545,13 +545,13 @@ static CUfunction compile_kernel (const char * start, const char * op)
     "--std=c++11",
     "--use_fast_math"
   };
-  if (nvrtcCompileProgram (prog, 3, options) != NVRTC_SUCCESS) {
+  if (hiprtcCompileProgram (prog, 3, options) != HIPRTC_SUCCESS) {
     fputs (kernel_source, stderr);
     size_t log_size;
-    NVRTC_CHECK (nvrtcGetProgramLogSize (prog, &log_size));
+    NVRTC_CHECK (hiprtcGetProgramLogSize (prog, &log_size));
     if (log_size) {
       char * log = (char *)malloc (log_size);
-      NVRTC_CHECK (nvrtcGetProgramLog (prog, log));
+      NVRTC_CHECK (hiprtcGetProgramLog (prog, log));
       fprintf (stderr, "%s:%d: %s\n", __FILE__, __LINE__, log);
       free (log);
     }
@@ -560,42 +560,42 @@ static CUfunction compile_kernel (const char * start, const char * op)
 
   /*    Extract PTX    */
   size_t ptx_size;
-  NVRTC_CHECK (nvrtcGetPTXSize (prog, &ptx_size));
+  NVRTC_CHECK (hiprtcGetCodeSize (prog, &ptx_size));
   char * ptx = (char *) malloc (ptx_size);
-  NVRTC_CHECK (nvrtcGetPTX (prog, ptx));
-  NVRTC_CHECK (nvrtcDestroyProgram (&prog));
+  NVRTC_CHECK (hiprtcGetCode (prog, ptx));
+  NVRTC_CHECK (hiprtcDestroyProgram (&prog));
 
   /*    Load module    */
-  CUmodule module;
-  CUDA_CHECK (cuModuleLoadData (&module, ptx));
+  hipModule_t module;
+  CUDA_CHECK (hipModuleLoadData (&module, ptx));
   free (ptx);
 
-  CUfunction kernel;
-  CUDA_CHECK(cuModuleGetFunction (&kernel, module, "reduce"));
+  hipFunction_t kernel;
+  CUDA_CHECK(hipModuleGetFunction (&kernel, module, "reduce"));
   return kernel;
 }
 
 static
-float cuda_reduce (CUdeviceptr d_input, const size_t N, const char op)
+float cuda_reduce (hipDeviceptr_t d_input, const size_t N, const char op)
 {
   /*    Compile kernel with NVRTC    */
   
-  CUfunction kernel;
+  hipFunction_t kernel;
   switch (op) {
   case '+': {
-    static CUfunction k = 0;
+    static hipFunction_t k = 0;
     if (!k) k = compile_kernel ("0.0f;", "reduced += rhs");
     kernel = k;
     break;
   }
   case 'm': {
-    static CUfunction k = 0;
+    static hipFunction_t k = 0;
     if (!k) k = compile_kernel ("3e38f;", "reduced = min(reduced,rhs)");
     kernel = k;
     break;
   }
   case 'M': {
-    static CUfunction k = 0;
+    static hipFunction_t k = 0;
     if (!k) k = compile_kernel ("-3e38f;", "reduced = max(reduced,rhs)");
     kernel = k;
     break;
@@ -607,31 +607,31 @@ float cuda_reduce (CUdeviceptr d_input, const size_t N, const char op)
   /*    Allocate device memory    */
 
   static size_t Np = 0;
-  static CUdeviceptr d_output_a = 0, d_output_b = 0;
+  static hipDeviceptr_t d_output_a = 0, d_output_b = 0;
   if (N > Np) {
     const size_t max_blocks = (N + 511)/512;
     if (d_output_a) {
-      CUDA_CHECK (cuMemFree (d_output_a));
-      CUDA_CHECK (cuMemFree (d_output_b));
+      CUDA_CHECK (hipFree (d_output_a));
+      CUDA_CHECK (hipFree (d_output_b));
     }
-    CUDA_CHECK (cuMemAlloc (&d_output_a, max_blocks*sizeof(float)));
-    CUDA_CHECK (cuMemAlloc (&d_output_b, max_blocks*sizeof(float)));
+    CUDA_CHECK (hipMalloc (&d_output_a, max_blocks*sizeof(float)));
+    CUDA_CHECK (hipMalloc (&d_output_b, max_blocks*sizeof(float)));
     Np = N;
   }
     
   /*    Multi-pass reduction    */
 
-  CUdeviceptr input = d_input, output = d_output_a;
+  hipDeviceptr_t input = d_input, output = d_output_a;
   size_t current_n = N;
   while (current_n > 1) {
     const size_t threads = 256;
     size_t blocks = (current_n + threads*2 - 1)/(threads*2);
     void * args[] = {&input, &output, &current_n};
-    CUDA_CHECK (cuLaunchKernel (kernel,
+    CUDA_CHECK (hipModuleLaunchKernel (kernel,
                                 blocks, 1, 1, threads,
                                 1, 1, 0, 0,
                                 args, NULL));
-    CUDA_CHECK (cuCtxSynchronize());
+    CUDA_CHECK (hipCtxSynchronize());
     current_n = blocks;
     input = output;
     output = (output == d_output_a) ? d_output_b : d_output_a;
@@ -639,12 +639,12 @@ float cuda_reduce (CUdeviceptr d_input, const size_t N, const char op)
 
   /*        Copy result back        */  
   float gpu_reduce;
-  CUDA_CHECK (cuMemcpyDtoH (&gpu_reduce, input, sizeof(float)));
+  CUDA_CHECK (hipMemcpyDtoH (&gpu_reduce, input, sizeof(float)));
 #if 0
   /*    Cleanup    */
-  CUDA_CHECK(cuMemFree(d_output_a));
-  CUDA_CHECK(cuMemFree(d_output_b));
-  CUDA_CHECK(cuModuleUnload(module));
+  CUDA_CHECK(hipFree(d_output_a));
+  CUDA_CHECK(hipFree(d_output_b));
+  CUDA_CHECK(hipModuleUnload(module));
 #endif
   return gpu_reduce;
 }
