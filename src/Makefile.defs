@@ -51,6 +51,12 @@ clean:
 %.cuda.s.d: CFLAGS += -grid=cuda/multigrid
 %.cuda.tst: CFLAGS += -grid=cuda/multigrid
 
+%.hip.c: %.c
+	ln -s -f $< $@
+%.hip.s:   CFLAGS += -grid=hip/multigrid
+%.hip.s.d: CFLAGS += -grid=hip/multigrid
+%.hip.tst: CFLAGS += -grid=hip/multigrid
+
 %.CADNA.c: %.c
 	ln -s -f $< $@
 
