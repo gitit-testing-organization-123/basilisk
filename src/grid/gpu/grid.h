@@ -360,6 +360,7 @@ To maximize performance, here are a few tips and observations:
 * [GPU benchmarks](Benchmarks.md)
 * [Computation kernels](/src/ast/kernels.c)
 * [An experimental CUDA driver](/src/grid/cuda/cuda.c)
+* [An experimental HIP driver](/src/grid/cuda/hip.c)
 
 # Implementation */
 

@@ -1,24 +1,37 @@
 /**
 # HIP backend for GPUs
 
+This uses the HIP driver interface from AMD as well as the
+"real-time-compiler" HIPRTC. HIP can be installed on Debian systems
+using:
+
 ~~~bash
 apt install hipcc
 ~~~
 
-This file was (mostly) translated automatically from the [CUDA
+Since the HIP driver interface is meant to be compatible with CUDA,
+this file was (mostly) translated automatically from the [CUDA
 backend](../cuda/cuda.c) using
 
 ~~~bash
 hipify-perl -hip-kernel-execution-syntax ../cuda/cuda.c > hip.c
 ~~~
 
-This relies on the CUDA and NVRTC libraries which can be installed on
-Debian systems using:
+Note that this was only tested using the HIP-on-CUDA implementation
+i.e. HIP is then just a translation layer which relies on the CUDA
+implementation. So the CUDA libraries need to be installed using:
 
 ~~~bash
 apt install nvidia-driver nvidia-cuda-dev
 ~~~
-*/
+
+The results should then be identical to those of the CUDA backend
+(including the poor performances).
+
+Adapting this to a pure AMD/ROCm implementation will involve changing
+the compilation of the `libhip.a` library (see the [Makefile]()), and
+changing the `autolink` pragmas in [multigrid.h]() and
+[cartesian.h](). */
 
 #include <stdlib.h>
 #include <stdio.h>
