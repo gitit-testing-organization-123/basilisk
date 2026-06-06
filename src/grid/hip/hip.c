@@ -219,7 +219,7 @@ bool gpu_init_context (GPUData ** data)
 void gpu_free_context (GPUData * data)
 {
   if (ssbo) {
-    HIP_CHECK (hipFree (ssbo));
+    HIP_CHECK (hipFree ((void *) ssbo));
     ssbo = 0;
   }
   GPUContext.current_size = 0;
@@ -232,10 +232,10 @@ void realloc_ssbo (size_t field_size)
   size_t totalsize = field_size*datasize;
   assert (totalsize > GPUContext.current_size);
   hipDeviceptr_t ptr;
-  HIP_CHECK (hipMalloc (&ptr, totalsize)); // fixme: allocates memory twice
+  HIP_CHECK (hipMalloc ((void **) &ptr, totalsize)); // fixme: allocates memory twice
   if (GPUContext.current_size > 0) {
     HIP_CHECK (hipMemcpyDtoD (ptr, ssbo, GPUContext.current_size));
-    HIP_CHECK (hipFree (ssbo));
+    HIP_CHECK (hipFree ((void *) ssbo));
   }
   ssbo = ptr;
   GPUContext.current_size = totalsize;
@@ -611,11 +611,11 @@ float cuda_reduce (hipDeviceptr_t d_input, const size_t N, const char op)
   if (N > Np) {
     const size_t max_blocks = (N + 511)/512;
     if (d_output_a) {
-      HIP_CHECK (hipFree (d_output_a));
-      HIP_CHECK (hipFree (d_output_b));
+      HIP_CHECK (hipFree ((void *) d_output_a));
+      HIP_CHECK (hipFree ((void *) d_output_b));
     }
-    HIP_CHECK (hipMalloc (&d_output_a, max_blocks*sizeof(float)));
-    HIP_CHECK (hipMalloc (&d_output_b, max_blocks*sizeof(float)));
+    HIP_CHECK (hipMalloc ((void **) &d_output_a, max_blocks*sizeof(float)));
+    HIP_CHECK (hipMalloc ((void **) &d_output_b, max_blocks*sizeof(float)));
     Np = N;
   }
     
