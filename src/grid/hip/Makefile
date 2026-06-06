@@ -1,12 +1,14 @@
 .PHONY: all clean
 
-CFLAGS += -I$(BASILISK) -I.. -DSINGLE_PRECISION -O2
+# Change -D__HIP_PLATFORM_NVIDIA__ to -D__HIP_PLATFORM_AMD__ to use ROCm on AMD
 
-all: libbuda.a
+CFLAGS += -I$(BASILISK) -I.. -DSINGLE_PRECISION -O2 -D__HIP_PLATFORM_NVIDIA__
 
-libbuda.a: cuda.o
-	ar cr libbuda.a cuda.o
+all: libhip.a
 
-cuda.o: ../gpu/backend.h cuda.c
+libhip.a: hip.o
+	ar cr libhip.a hip.o
+
+cuda.o: ../gpu/backend.h hip.c
 
 include ../../Makefile.defs
