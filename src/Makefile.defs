@@ -26,7 +26,7 @@ tags: $(patsubst %.page,%.tags,$(ALLPAGES))
 itags: $(patsubst %.page,%.itags,$(filter %.h.page, $(ALLPAGES)))
 
 clean:
-	rm -f *.o *.s *.*tst *.d *.prof *.itags Makefile.deps Makefile.tests
+	rm -f *.o *.a *.s *.*tst *.d *.prof *.itags Makefile.deps Makefile.tests
 
 .PRECIOUS: %.prof %.s %.c %.h %.plot
 
