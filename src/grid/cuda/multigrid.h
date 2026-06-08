@@ -1,4 +1,4 @@
-#define GRIDNAME "Multigrid (cuda)"
+#define GRIDNAME "Multigrid (CUDA)"
 #define _CUDA 1
 #include "../gpu-multigrid.h"
 #pragma autolink -L$BASILISK/grid/cuda -lbuda -lcuda -lnvrtc -L$BASILISK/grid/gpu -lerrors

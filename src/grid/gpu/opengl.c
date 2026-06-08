@@ -297,7 +297,7 @@ void free_shader (Shader * s)
   free (s);
 }
 
-Shader * load_normal_shader (const char * fs)
+Shader * load_normal_shader (const char * fs, const char * func, const char * file, int line)
 {
   GLuint id;
   if (!GPUContext.fragment_shader)

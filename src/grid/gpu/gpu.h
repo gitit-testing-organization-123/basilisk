@@ -32,7 +32,7 @@ macro2 foreach_stencil_generic (char flags, Reduce reductions,
 				int _parallel, External * _externals, const char * _kernel)
 {
   tracing_foreach ("foreach", S__FILE__, S_LINENO);
-  static ForeachData _loop = { .fname = S__FILE__, .line = S_LINENO, .first = 1 };
+  static ForeachData _loop = { .fname = S__FILE__, .func = S__func__, .line = S_LINENO, .first = 1 };
   _loop.parallel = _parallel;
   if (baseblock)
     for (scalar s = baseblock[0], * i = baseblock; s.i >= 0; i++, s = *i) {

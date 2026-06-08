@@ -347,6 +347,15 @@ To maximize performance, here are a few tips and observations:
   spent. Use the `-DTRACE=3` compilation flag to get profiling
   information at the level of foreach loops.
 
+## Profiling with Nsight Compute or Nsight Systems
+
+~~~bash
+ncu --set default ./my_app
+
+nsys profile --stats=true <your_executable> [args]
+nsys-ui report*.nsys-rep
+~~~
+  
 ## Bugs
 
 * Trying to use more than one shader storage buffer (SSBO) with Intel
@@ -1138,7 +1147,14 @@ Shader * load_shader (const char * fs, uint32_t hash, const ForeachData * loop)
     fputs (fs, stderr);
   }
 #endif
-  Shader * shader = load_normal_shader (fs);
+  Shader * shader;
+  if (loop && loop->func) {
+    char func[strlen(loop->func) + 20];
+    sprintf (func, "%s_%d", loop->func, loop->line);
+    shader = load_normal_shader (fs, func, loop->fname, loop->line);
+  }
+  else
+    shader = load_normal_shader (fs, __func__, __FILE__, LINENO);
   if (shader) {
     int ret;
     khiter_t k = kh_put (INT, gpu_grid->shaders, hash, &ret);
@@ -1335,6 +1351,19 @@ static External * merge_externals (External * externals, const ForeachData * loo
   return merged;
 }
 
+static char * shader_append_func (char * s, const ForeachData * loop)
+{
+#if _CUDA
+  char func[strlen(loop->func) + 20];
+  sprintf (func, "%s_%d", loop->func, loop->line);
+  return str_append (s,
+                     "extern \"C\" __global__\n"
+                     "void ", func, "() {\n");
+#else // !_CUDA
+  return str_append (s, "void main() {\n");
+#endif
+}
+
 trace
 static Shader * compile_shader (ForeachData * loop,
 				uint32_t hash,
@@ -1444,14 +1473,7 @@ static Shader * compile_shader (ForeachData * loop,
     shader = str_append (shader, ") {\n");
   }
   else
-    shader = str_append (shader,
-#if _CUDA
-                         "extern \"C\" __global__\n"
-                         "void kernel() {\n"
-#else
-                         "void main() {\n"
-#endif
-                         );
+    shader = shader_append_func (shader, loop);
 
   if (!GPUContext.fragment_shader) {
     char d[20];
@@ -1511,14 +1533,8 @@ static Shader * compile_shader (ForeachData * loop,
 		       "}}\n");
 
   if (local) {
-    shader = str_append (shader,
-#if _CUDA
-                         "extern \"C\" __global__\n"
-                         "void kernel(){_loop("
-#else
-                         "void main(){_loop("
-#endif
-                         );
+    shader = shader_append_func (shader, loop);
+    shader = str_append (shader, "_loop(");
     local = 1;
     for (const External * g = merged; g; g = g->next)
       if (g->global == 2)

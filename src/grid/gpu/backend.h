@@ -28,7 +28,7 @@ KHASH_MAP_INIT_INT(INT, Shader *)
 
 void gpu_free_solver (void);
 void free_shader (Shader * s);
-Shader * load_normal_shader (const char * fs);
+Shader * load_normal_shader (const char * fs, const char * func, const char * file, int line);
 void gpu_free_context (GPUData * data);
 bool gpu_init_context (GPUData ** data);
 void realloc_ssbo (size_t field_size);
