@@ -1,9 +1,11 @@
 /**
 # HIP backend for GPUs
 
-This uses the HIP driver interface from AMD as well as the
-"real-time-compiler" HIPRTC. HIP can be installed on Debian systems
-using:
+This uses the
+[HIP](https://rocm.docs.amd.com/projects/HIP/en/latest/what_is_hip.html)
+driver interface from AMD as well as the "run-time-compiler"
+[HIPRTC](https://rocm.docs.amd.com/projects/HIP/en/docs-6.0.0/user_guide/hip_rtc.html). HIP
+can be installed on Debian systems using:
 
 ~~~bash
 apt install hipcc
@@ -31,7 +33,13 @@ The results should then be identical to those of the CUDA backend
 Adapting this to a pure AMD/ROCm implementation will involve changing
 the compilation of the `libhip.a` library (see the [Makefile]()), and
 changing the `autolink` pragmas in [multigrid.h]() and
-[cartesian.h](). */
+[cartesian.h]().
+
+## TODO
+
+* Since HIP is compatible with CUDA, this backend should in the end
+  completely replace the [CUDA backend](../cuda/cuda.c).
+*/
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -96,8 +104,9 @@ enum typedef_kind_t {
 static hipDeviceptr_t ssbo = 0;
 static hipDevice_t dev = 0;
 static hipCtx_t ctx = 0;
+static hipStream_t stream = 0;
 
-#define HIP_CHECK(x)                                                    \
+#define HIP_CHECK(x)                                                   \
   do {                                                                  \
     hipError_t err = (x);                                               \
     if (err != hipSuccess) {                                            \
@@ -149,10 +158,11 @@ void architecture (char * arch)
                                     cuDevice));
   HIP_CHECK (hipDeviceGetAttribute (&minor, hipDeviceAttributeComputeCapabilityMinor,
                                     cuDevice));
-  sprintf (arch, "--gpu-architecture=compute_%d%d", major, minor);
+  sprintf (arch, "--gpu-architecture=sm_%d%d", major, minor);
+  // fixme: not sure whether this should be compute_%d%d or sm_%d%d ??
 }
 
-Shader * load_normal_shader (const char * fs)
+Shader * load_normal_shader (const char * fs, const char * func, const char * file, int line)
 {
   //  fputs (fs, stderr);
   
@@ -163,21 +173,17 @@ Shader * load_normal_shader (const char * fs)
                                     NULL,
                                     NULL
                                     ));
-  char arch[] = "--gpu-architecture=compute_86";
+  char arch[] = "--gpu-architecture=compute_????";
   architecture (arch);
   const char *opts[] = {
     "--std=c++11",
     arch,
     "-default-device",
     "-diag-suppress=177",
-#if 0    
-    "-use_fast_math",          // Fast math
-    "--ftz=true",              // Flush denormals to zero
-    "--prec-div=false",        // Faster division
-    "--prec-sqrt=false",       // Faster sqrt
-    "--fmad=true",             // Enable FMA
-    "--maxrregcount=64",       // Limit registers (adjust based on kernel)
-#endif
+    "--ptxas-options=-O3",
+    "--extra-device-vectorization",
+    "--restrict",
+    "-use_fast_math",
   };
 
   hiprtcResult compile_res = hiprtcCompileProgram (prog, sizeof(opts)/sizeof(char *), opts);
@@ -213,7 +219,7 @@ Shader * load_normal_shader (const char * fs)
 
   Shader * shader = calloc (1, sizeof (Shader));
   HIP_CHECK (hipModuleLoadData (&shader->module, ptx));
-  HIP_CHECK (hipModuleGetFunction (&shader->kernel, shader->module, "kernel"));
+  HIP_CHECK (hipModuleGetFunction (&shader->kernel, shader->module, func));
   return shader;
 }
 
@@ -327,13 +333,9 @@ void finalize_shader (Shader * shader, External * externals, External * merged,
 	g->type == sym_BOOL ||
 	g->type == sym_VEC4) {
       char * name = str_append (NULL, EXTERNAL_NAME (g));
-#if 0      
-      int location = glGetUniformLocation (s->id, name);
-#else
       hipDeviceptr_t location = 0;
       size_t size;
       hipModuleGetGlobal (&location, &size, shader->module, name);
-#endif
       if (location) {
         //        fprintf (stderr, "%s %d %ld\n", name, g->type, size);
 	// not an array or just a one-dimensional array
@@ -382,10 +384,8 @@ void finalize_shader (Shader * shader, External * externals, External * merged,
 	// uniforms refering to local variables must be in the 'externals' local list
 	assert (g->global == 1 || g->used);
       }
-#if 1
       else
         fprintf (stderr, "%s not found\n", name);
-#endif
       free (name);
     }
   }
@@ -398,7 +398,7 @@ void post_setup_shader (Shader * shader, External * externals)
   Set SSBO pointer. */
   
   assert (ssbo);
-  HIP_CHECK (hipMemcpyHtoD (shader->_data, &ssbo, sizeof (ssbo)));
+  HIP_CHECK (hipMemcpyHtoDAsync (shader->_data, &ssbo, sizeof (ssbo), stream));
 
   /**
   ## Set uniforms */
@@ -411,14 +411,14 @@ void post_setup_shader (Shader * shader, External * externals)
     }
     switch (g->type) {
     case sym_INT: case sym_FLOAT: case sym_VEC4: case sym_BOOL:
-      HIP_CHECK (hipMemcpyHtoD (g->location, pointer, g->size));
+      HIP_CHECK (hipMemcpyHtoDAsync (g->location, pointer, g->size, stream));
       break;
     case sym_LONG: {
       int p[g->nd];
       long * data = pointer;
       for (int i = 0; i < g->nd; i++)
 	p[i] = data[i];
-      HIP_CHECK (hipMemcpyHtoD (g->location, p, g->size));
+      HIP_CHECK (hipMemcpyHtoDAsync (g->location, p, g->size, stream));
       break;
     }
 #if SINGLE_PRECISION
@@ -427,12 +427,12 @@ void post_setup_shader (Shader * shader, External * externals)
       double * data = pointer;
       for (int i = 0; i < g->nd; i++)
 	p[i] = data[i];
-      HIP_CHECK (hipMemcpyHtoD (g->location, p, g->size));
+      HIP_CHECK (hipMemcpyHtoDAsync (g->location, p, g->size, stream));
       break;
     }
 #else // DOUBLE_PRECISION
     case sym_DOUBLE: case sym__COORD: case sym_COORD:
-      HIP_CHECK (hipMemcpyHtoD (g->location, pointer, g->size));
+      HIP_CHECK (hipMemcpyHtoDAsync (g->location, pointer, g->size, stream));
       break;
 #endif // DOUBLE_PRECISION
     default:
@@ -454,12 +454,12 @@ int run_shader (const Shader * shader, const RegionParameters * region)
       (region->p.x - X0)/L0*Nl*Dimensions.x,
       (region->p.y - Y0)/L0*Nl*Dimensions.x
     };
-    HIP_CHECK (hipMemcpyHtoD (shader->csOrigin, csOrigin, 2*sizeof(int)));
+    HIP_CHECK (hipMemcpyHtoDAsync (shader->csOrigin, csOrigin, 2*sizeof(int), stream));
     assert (!GPUContext.fragment_shader);
     HIP_CHECK (hipModuleLaunchKernel (shader->kernel,
                                       1, 1, 1,
                                       1, 1, 1,
-                                      0, 0, NULL, NULL));
+                                      0, stream, NULL, NULL));
   }
 
   /**
@@ -487,7 +487,7 @@ int run_shader (const Shader * shader, const RegionParameters * region)
     HIP_CHECK (hipModuleLaunchKernel (shader->kernel,
                                       shader->ng[0], shader->ng[1], 1,
                                       shader->nwg[0], shader->nwg[1], 1,
-                                      0, 0, NULL, NULL));
+                                      0, stream, NULL, NULL));
   }
   return Nl;
 }
@@ -505,7 +505,9 @@ void gpu_synchronize()
     HIP_CHECK (hipCtxSynchronize ());
 }
 
-
+/**
+## Reductions */
+   
 static char kernel_source[] =
   "#define REDUCE(reduced,rhs) reduced += rhs                                          \n"
   "extern \"C\"\n"
@@ -551,7 +553,7 @@ static hipFunction_t compile_kernel (const char * start, const char * op)
   s += strlen(start); while (*s != '\n') *s++ = ' '; 
   HIPRTC_CHECK (hiprtcCreateProgram (&prog, kernel_source, "reduce.cu",
                                      0, NULL, NULL));
-  char arch[] = "--gpu-architecture=compute_86";
+  char arch[] = "--gpu-architecture=compute_????";
   architecture (arch);
   const char* options[] = {
     arch,
@@ -642,9 +644,9 @@ float cuda_reduce (hipDeviceptr_t d_input, const size_t N, const char op)
     void * args[] = {&input, &output, &current_n};
     HIP_CHECK (hipModuleLaunchKernel (kernel,
                                       blocks, 1, 1, threads,
-                                      1, 1, 0, 0,
+                                      1, 1, 0, stream,
                                       args, NULL));
-    HIP_CHECK (hipCtxSynchronize());
+    //    HIP_CHECK (hipCtxSynchronize());
     current_n = blocks;
     input = output;
     output = (output == d_output_a) ? d_output_b : d_output_a;

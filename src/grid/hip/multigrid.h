@@ -1,4 +1,4 @@
-#define GRIDNAME "Multigrid (HIP)"
+#define GRIDNAME "Multigrid (hip)"
 #define _CUDA 1
 #include "../gpu-multigrid.h"
 

@@ -1,4 +1,4 @@
-#define GRIDNAME "Cartesian (HIP)"
+#define GRIDNAME "Cartesian (hip)"
 #define _CUDA 1
 #include "../gpu-cartesian.h"
 
