@@ -183,6 +183,13 @@ Shader * load_normal_shader (const char * fs, const char * func, const char * fi
   NVRTC_CHECK (nvrtcGetPTX (prog, ptx));
   NVRTC_CHECK (nvrtcDestroyProgram (&prog));
 
+#if SINGLE_PRECISION
+  //  fputs (ptx, stderr);
+  if (strstr (ptx, ".f64"))
+    fprintf (stderr, "%s:%d: warning: CUDA: found FP64 assembly in single precision mode\n",
+             file, line);
+#endif // SINGLE_PRECISION
+  
   // ------------------------------------------------------------
   // Load PTX module
   // ------------------------------------------------------------
