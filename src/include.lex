@@ -81,14 +81,14 @@
   }
 
   static void push_once (char * s) {
-    static char * _processed[100];
+    static char * _processed[512];
     static int processed = 0;
     int i;
     char * s1 = strip_path (s);
     for (i = 0; i < processed; i++)
       if (!strcmps (s1, strip_path (_processed[i])))
 	return; // already processed    
-    assert (processed < 100);
+    assert (processed < 512);
     _processed[processed++] = push (s);
   }
   
