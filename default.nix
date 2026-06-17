@@ -4,7 +4,7 @@
 let
   lib = pkgs.lib;
 
-  pname = "pbacific-basilisk";
+  pname = "pacific-basilisk";
   version = "0.0.1";
 
   package = pkgs.stdenv.mkDerivation {

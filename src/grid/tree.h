@@ -37,6 +37,8 @@ struct _Point {
 @ define BGHOSTS 1
 #endif
 
+#define ND(i,l) ((size_t)(1 << l)*((int*)&Dimensions)[i])
+
 #define _I     (point.i - GHOSTS)
 #if dimension >= 2
 # define _J    (point.j - GHOSTS)
@@ -44,7 +46,10 @@ struct _Point {
 #if dimension >= 3
 # define _K    (point.k - GHOSTS)
 #endif
-#define _DELTA (1./(1 << point.level))
+
+int Dimensions_scale = 1;
+// #define _DELTA (1./(1 << point.level))
+#define _DELTA (1./((1 << point.level)*Dimensions_scale))
 
 typedef struct {
   unsigned short flags;
@@ -116,29 +121,47 @@ typedef struct {
   Mempool * pool; // the memory pool actually holding the data
   long nc;     // the number of allocated elements
   int len;    // the (1D) size of the array
+  int len_x;
+#if dimension >= 2
+  int len_y;
+#endif 
+#if dimension >= 3
+  int len_z;
+#endif
 } Layer;
 
-static size_t _size (size_t depth)
+static size_t _size (size_t depth, size_t dim)
 {
-  return (1 << depth) + 2*GHOSTS;
+  return ((size_t)(1 << depth)*((int *)&Dimensions)[dim] + 2*GHOSTS);
 }
 
 static size_t poolsize (size_t depth, size_t size)
 {
-  // the maximum amount of data at a given level
 #if dimension == 1
-  return _size(depth)*size;  
+  return _size(depth, 0) * size;
 #elif dimension == 2
-  return sq(_size(depth))*size;
-#else
-  return cube(_size(depth))*size;
+  return _size(depth,0)*_size(depth,1)*size;
+#else 
+  return _size(depth,0) * _size(depth,1)* _size(depth,2) * size;
 #endif
 }
 
 static Layer * new_layer (int depth)
 {
   Layer * l = qmalloc (1, Layer);
-  l->len = _size (depth);
+#if dimension == 1
+  l->len_x = _size(depth,0);
+  l->len = l->len_x;
+#elif dimension == 2
+  l->len_x = _size(depth,0);
+  l->len_y = _size(depth,1);
+  l->len = l->len_x * l->len_y;
+#else
+  l->len_x = _size(depth,0);
+  l->len_y = _size(depth,1);
+  l->len_z = _size(depth,2);
+  l->len = l->len_x * l->len_y * l->len_z;
+#endif
   if (depth == 0)
     l->pool = NULL; // the root layer does not use a pool
   else {
@@ -348,7 +371,7 @@ macro POINT_VARIABLES (Point point = point) {
 #endif
 }
 
-#include "foreach_cell.h"
+#include "foreach_cell_forest.h"
 
 #if dimension == 1
 macro1 foreach_child (Point point = point, break = (_k = 2)) {
@@ -408,14 +431,14 @@ macro1 foreach_child (Point point = point, break = (_l = _m = _n = 2)) {
 #define is_refined(cell)      (!is_leaf (cell) && cell.neighbors && cell.pid >= 0)
 #define is_prolongation(cell) (!is_leaf(cell) && !cell.neighbors && cell.pid >= 0)
 #define is_boundary(cell)     (cell.pid < 0)
-  
+ 
 @def is_refined_check() (is_refined(cell) &&
-			 point.i > 0 && point.i < (1 << level) + 2*GHOSTS - 1
+			 point.i > 0 && point.i < ND(0,level) + 2*GHOSTS - 1
 #if dimension > 1
-			 && point.j > 0 && point.j < (1 << level) + 2*GHOSTS - 1
+			 && point.j > 0 && point.j < ND(1,level) + 2*GHOSTS  - 1
 #endif
 #if dimension > 2
-			 && point.k > 0 && point.k < (1 << level) + 2*GHOSTS - 1
+			 && point.k > 0 && point.k < ND(2,level) + 2*GHOSTS - 1
 #endif
 			 )
 @
@@ -763,12 +786,19 @@ void reset (void * alist, double val)
   /* low-level memory management */
   for (int l = 0; l <= depth(); l++) {
     Layer * L = q->L[l];
-    foreach_mem (L->m, L->len, 1) {
+#if dimension == 1
+    foreach_mem (L->m, L->len_x, 1)
+#elif dimension == 2 
+    foreach_mem (L->m, L->len_x, L->len_y, 1)
+#else // dimension == 3
+    foreach_mem (L->m, L->len_x, L->len_y, L->len_z, 1)
+#endif 
+    {      
       point.level = l;
       for (scalar s in list) {
-	if (!is_constant(s))
-	  for (int b = 0; b < s.block; b++)
-	    data(0,0,0)[s.i + b] = val;
+	      if (!is_constant(s))
+	        for (int b = 0; b < s.block; b++)
+	          data(0,0,0)[s.i + b] = val;
       }
     }
   }
@@ -800,15 +830,24 @@ static void update_depth (int inc)
 #if dimension == 1
 typedef void (* PeriodicFunction) (Memindex, int, int, void *);
 
-static void periodic_function (Memindex m, int i, int len, void * b,
+// static void periodic_function (Memindex m, int i, int len, void * b,
+// 			       PeriodicFunction f)
+static void periodic_function (Memindex m, int i, int len_x, void * b,
 			       PeriodicFunction f)
 {
-  f(m, i, len, b);
+  // f(m, i, len, b);
+  // if (Period.x) {
+  //   int nl = len - 2*GHOSTS;
+  //   for (int l = - 1; l <= 1; l += 2)
+  //     for (int n = i + l*nl; n >= 0 && n < len; n += l*nl)
+	// f(m, n, len, b);
+  // }
+  f(m, i, len_x, b);
   if (Period.x) {
-    int nl = len - 2*GHOSTS;
+    int nlx = len_x - 2*GHOSTS;
     for (int l = - 1; l <= 1; l += 2)
-      for (int n = i + l*nl; n >= 0 && n < len; n += l*nl)
-	f(m, n, len, b);
+      for (int n = i + l*nlx; n >= 0 && n < len_x; n += l*nlx)
+	f(m, n, len_x, b);
   }
 }
 			       
@@ -822,118 +861,252 @@ static void free_periodic (Memindex m, int i, int len)
   periodic_function (m, i, len, NULL, (PeriodicFunction) mem_free);
 }
 #elif dimension == 2
-typedef void (* PeriodicFunction) (Memindex, int, int, int, void *);
+// typedef void (* PeriodicFunction) (Memindex, int, int, int, void *);
+typedef void (* PeriodicFunction) (Memindex, int, int, int, int, void *);
 
-static void periodic_function (Memindex m, int i, int j, int len, void * b,
+// static void periodic_function (Memindex m, int i, int j, int len, void * b,
+// 			       PeriodicFunction f)
+static void periodic_function (Memindex m, int i, int j, int len_x, int len_y, void * b,
 			       PeriodicFunction f)
 {
-  f(m, i, j, len, b);
+  // f(m, i, j, len, b);
+  // if (Period.x) {
+  //   int nl = len - 2*GHOSTS;
+  //   for (int l = - 1; l <= 1; l += 2)
+  //     for (int n = i + l*nl; n >= 0 && n < len; n += l*nl)
+	// f(m, n, j, len, b);
+  //   if (Period.y)
+  //     for (int l = - 1; l <= 1; l += 2)
+	// for (int n = j + l*nl; n >= 0 && n < len; n += l*nl) {
+	//   f(m, i, n, len, b);
+	//   for (int o = - 1; o <= 1; o += 2)
+	//     for (int p = i + o*nl; p >= 0 && p < len; p += o*nl)
+	//       f(m, p, n, len, b);
+	// }
+  // }
+  // else if (Period.y) {
+  //   int nl = len - 2*GHOSTS;
+  //   for (int l = - 1; l <= 1; l += 2)
+  //     for (int n = j + l*nl; n >= 0 && n < len; n += l*nl)
+	// f(m, i, n, len, b);
+  // }
+  f(m, i, j, len_x, len_y, b);
+
   if (Period.x) {
-    int nl = len - 2*GHOSTS;
-    for (int l = - 1; l <= 1; l += 2)
-      for (int n = i + l*nl; n >= 0 && n < len; n += l*nl)
-	f(m, n, j, len, b);
-    if (Period.y)
-      for (int l = - 1; l <= 1; l += 2)
-	for (int n = j + l*nl; n >= 0 && n < len; n += l*nl) {
-	  f(m, i, n, len, b);
-	  for (int o = - 1; o <= 1; o += 2)
-	    for (int p = i + o*nl; p >= 0 && p < len; p += o*nl)
-	      f(m, p, n, len, b);
-	}
+    int nlx = len_x - 2*GHOSTS;
+
+    for (int l = -1; l <= 1; l += 2)
+      for (int n = i + l*nlx; n >= 0 && n < len_x; n += l*nlx)
+        f(m, n, j, len_x, len_y, b);
+
+    if (Period.y) {
+      int nly = len_y - 2*GHOSTS;
+
+      for (int l = -1; l <= 1; l += 2)
+        for (int n = j + l*nly; n >= 0 && n < len_y; n += l*nly) {
+          f(m, i, n, len_x, len_y, b);
+
+          for (int o = -1; o <= 1; o += 2)
+            for (int p = i + o*nlx; p >= 0 && p < len_x; p += o*nlx)
+              f(m, p, n, len_x, len_y, b);
+        }
+    }
   }
   else if (Period.y) {
-    int nl = len - 2*GHOSTS;
-    for (int l = - 1; l <= 1; l += 2)
-      for (int n = j + l*nl; n >= 0 && n < len; n += l*nl)
-	f(m, i, n, len, b);
+    int nly = len_y - 2*GHOSTS;
+
+    for (int l = -1; l <= 1; l += 2)
+      for (int n = j + l*nly; n >= 0 && n < len_y; n += l*nly)
+        f(m, i, n, len_x, len_y, b);
   }
 }
 			       
-static void assign_periodic (Memindex m, int i, int j, int len, void * b)
+// static void assign_periodic (Memindex m, int i, int j, int len, void * b)
+// {
+//   periodic_function (m, i, j, len, b, mem_assign);
+// }
+
+static void assign_periodic (Memindex m, int i, int j, int len_x, int len_y, void * b)
 {
-  periodic_function (m, i, j, len, b, mem_assign);
+  periodic_function (m, i, j, len_x, len_y, b, mem_assign);
 }
 
-static void free_periodic (Memindex m, int i, int j, int len)
+// static void free_periodic (Memindex m, int i, int j, int len)
+// {
+//   periodic_function (m, i, j, len, NULL, mem_free);
+// }
+
+static void free_periodic (Memindex m, int i, int j, int len_x, int len_y)
 {
-  periodic_function (m, i, j, len, NULL, mem_free);
+  periodic_function (m, i, j, len_x, len_y, NULL, mem_free);
 }
 #else // dimension == 3
-typedef void (* PeriodicFunction) (Memindex, int, int, int, int, void *);
+// typedef void (* PeriodicFunction) (Memindex, int, int, int, int, void *);
+typedef void (* PeriodicFunction) (Memindex, int, int, int, int, int, int, void *);
 
-static void periodic_function (Memindex m, int i, int j, int k, int len,
+static void periodic_function (Memindex m, int i, int j, int k, int len_x, int len_y, int len_z,
 			       void * b, PeriodicFunction f)
 {
-  f(m, i, j, k, len, b);
+    // f(m, i, j, k, len, b);
+  // if (Period.x) {
+  //   int nl = len - 2*GHOSTS;
+  //   for (int l = - 1; l <= 1; l += 2)
+  //     for (int n = i + l*nl; n >= 0 && n < len; n += l*nl)
+	// f(m, n, j, k, len, b);
+  //   if (Period.y) {
+  //     for (int l = - 1; l <= 1; l += 2)
+	// for (int n = j + l*nl; n >= 0 && n < len; n += l*nl) {
+	//   f(m, i, n, k, len, b);
+	//   for (int o = - 1; o <= 1; o += 2)
+	//     for (int p = i + o*nl; p >= 0 && p < len; p += o*nl)
+	//       f(m, p, n, k, len, b);
+	// }
+  //     if (Period.z)
+	// for (int l = - 1; l <= 1; l += 2)
+	//   for (int n = k + l*nl; n >= 0 && n < len; n += l*nl) {
+	//     f(m, i, j, n, len, b);
+	//     for (int q = - 1; q <= 1; q += 2)
+	//       for (int r = j + q*nl; r >= 0 && r < len; r += q*nl)
+	// 	f(m, i, r, n, len, b);
+	//     for (int o = - 1; o <= 1; o += 2)
+	//       for (int p = i + o*nl; p >= 0 && p < len; p += o*nl) {
+	// 	f(m, p, j, n, len, b);
+	// 	for (int q = - 1; q <= 1; q += 2)
+	// 	  for (int r = j + q*nl; r >= 0 && r < len; r += q*nl)
+	// 	    f(m, p, r, n, len, b);
+	//       }
+	//   }
+  //   }
+  //   else if (Period.z)
+  //     for (int l = - 1; l <= 1; l += 2)
+	// for (int n = k + l*nl; n >= 0 && n < len; n += l*nl) {
+	//   f(m, i, j, n, len, b);
+	//   for (int o = - 1; o <= 1; o += 2)
+	//     for (int p = i + o*nl; p >= 0 && p < len; p += o*nl)
+	//       f(m, p, j, n, len, b);
+	// }
+  // }
+  // else if (Period.y) {
+  //   int nl = len - 2*GHOSTS;
+  //   for (int l = - 1; l <= 1; l += 2)
+  //     for (int n = j + l*nl; n >= 0 && n < len; n += l*nl)
+	// f(m, i, n, k, len, b);
+  //   if (Period.z)
+  //     for (int l = - 1; l <= 1; l += 2)
+	// for (int n = k + l*nl; n >= 0 && n < len; n += l*nl) {
+	//   f(m, i, j, n, len, b);
+	//   for (int o = - 1; o <= 1; o += 2)
+	//     for (int p = j + o*nl; p >= 0 && p < len; p += o*nl)
+	//       f(m, i, p, n, len, b);
+	// }
+  // }
+  // else if (Period.z) {
+  //   int nl = len - 2*GHOSTS;
+  //   for (int l = - 1; l <= 1; l += 2)
+  //     for (int n = k + l*nl; n >= 0 && n < len; n += l*nl)
+	// f(m, i, j, n, len, b);
+  // }
+  f(m, i, j, k, len_x, len_y, len_z, b);
+
   if (Period.x) {
-    int nl = len - 2*GHOSTS;
-    for (int l = - 1; l <= 1; l += 2)
-      for (int n = i + l*nl; n >= 0 && n < len; n += l*nl)
-	f(m, n, j, k, len, b);
+    int nlx = len_x - 2*GHOSTS;
+
+    for (int l = -1; l <= 1; l += 2)
+      for (int n = i + l*nlx; n >= 0 && n < len_x; n += l*nlx)
+	f(m, n, j, k, len_x, len_y, len_z, b);
+
     if (Period.y) {
-      for (int l = - 1; l <= 1; l += 2)
-	for (int n = j + l*nl; n >= 0 && n < len; n += l*nl) {
-	  f(m, i, n, k, len, b);
-	  for (int o = - 1; o <= 1; o += 2)
-	    for (int p = i + o*nl; p >= 0 && p < len; p += o*nl)
-	      f(m, p, n, k, len, b);
+      int nly = len_y - 2*GHOSTS;
+
+      for (int l = -1; l <= 1; l += 2)
+	for (int n = j + l*nly; n >= 0 && n < len_y; n += l*nly) {
+	  f(m, i, n, k, len_x, len_y, len_z, b);
+
+	  for (int o = -1; o <= 1; o += 2)
+	    for (int p = i + o*nlx; p >= 0 && p < len_x; p += o*nlx)
+	      f(m, p, n, k, len_x, len_y, len_z, b);
 	}
-      if (Period.z)
-	for (int l = - 1; l <= 1; l += 2)
-	  for (int n = k + l*nl; n >= 0 && n < len; n += l*nl) {
-	    f(m, i, j, n, len, b);
-	    for (int q = - 1; q <= 1; q += 2)
-	      for (int r = j + q*nl; r >= 0 && r < len; r += q*nl)
-		f(m, i, r, n, len, b);
-	    for (int o = - 1; o <= 1; o += 2)
-	      for (int p = i + o*nl; p >= 0 && p < len; p += o*nl) {
-		f(m, p, j, n, len, b);
-		for (int q = - 1; q <= 1; q += 2)
-		  for (int r = j + q*nl; r >= 0 && r < len; r += q*nl)
-		    f(m, p, r, n, len, b);
+
+      if (Period.z) {
+	int nlz = len_z - 2*GHOSTS;
+
+	for (int l = -1; l <= 1; l += 2)
+	  for (int n = k + l*nlz; n >= 0 && n < len_z; n += l*nlz) {
+	    f(m, i, j, n, len_x, len_y, len_z, b);
+
+	    for (int q = -1; q <= 1; q += 2)
+	      for (int r = j + q*nly; r >= 0 && r < len_y; r += q*nly)
+		f(m, i, r, n, len_x, len_y, len_z, b);
+
+	    for (int o = -1; o <= 1; o += 2)
+	      for (int p = i + o*nlx; p >= 0 && p < len_x; p += o*nlx) {
+		f(m, p, j, n, len_x, len_y, len_z, b);
+
+		for (int q = -1; q <= 1; q += 2)
+		  for (int r = j + q*nly; r >= 0 && r < len_y; r += q*nly)
+		    f(m, p, r, n, len_x, len_y, len_z, b);
 	      }
 	  }
+      }
     }
-    else if (Period.z)
-      for (int l = - 1; l <= 1; l += 2)
-	for (int n = k + l*nl; n >= 0 && n < len; n += l*nl) {
-	  f(m, i, j, n, len, b);
-	  for (int o = - 1; o <= 1; o += 2)
-	    for (int p = i + o*nl; p >= 0 && p < len; p += o*nl)
-	      f(m, p, j, n, len, b);
+    else if (Period.z) {
+      int nlz = len_z - 2*GHOSTS;
+
+      for (int l = -1; l <= 1; l += 2)
+	for (int n = k + l*nlz; n >= 0 && n < len_z; n += l*nlz) {
+	  f(m, i, j, n, len_x, len_y, len_z, b);
+
+	  for (int o = -1; o <= 1; o += 2)
+	    for (int p = i + o*nlx; p >= 0 && p < len_x; p += o*nlx)
+	      f(m, p, j, n, len_x, len_y, len_z, b);
 	}
+    }
   }
   else if (Period.y) {
-    int nl = len - 2*GHOSTS;
-    for (int l = - 1; l <= 1; l += 2)
-      for (int n = j + l*nl; n >= 0 && n < len; n += l*nl)
-	f(m, i, n, k, len, b);
-    if (Period.z)
-      for (int l = - 1; l <= 1; l += 2)
-	for (int n = k + l*nl; n >= 0 && n < len; n += l*nl) {
-	  f(m, i, j, n, len, b);
-	  for (int o = - 1; o <= 1; o += 2)
-	    for (int p = j + o*nl; p >= 0 && p < len; p += o*nl)
-	      f(m, i, p, n, len, b);
+    int nly = len_y - 2*GHOSTS;
+
+    for (int l = -1; l <= 1; l += 2)
+      for (int n = j + l*nly; n >= 0 && n < len_y; n += l*nly)
+	f(m, i, n, k, len_x, len_y, len_z, b);
+
+    if (Period.z) {
+      int nlz = len_z - 2*GHOSTS;
+
+      for (int l = -1; l <= 1; l += 2)
+	for (int n = k + l*nlz; n >= 0 && n < len_z; n += l*nlz) {
+	  f(m, i, j, n, len_x, len_y, len_z, b);
+
+	  for (int o = -1; o <= 1; o += 2)
+	    for (int p = j + o*nly; p >= 0 && p < len_y; p += o*nly)
+	      f(m, i, p, n, len_x, len_y, len_z, b);
 	}
+    }
   }
   else if (Period.z) {
-    int nl = len - 2*GHOSTS;
-    for (int l = - 1; l <= 1; l += 2)
-      for (int n = k + l*nl; n >= 0 && n < len; n += l*nl)
-	f(m, i, j, n, len, b);
+    int nlz = len_z - 2*GHOSTS;
+
+    for (int l = -1; l <= 1; l += 2)
+      for (int n = k + l*nlz; n >= 0 && n < len_z; n += l*nlz)
+	f(m, i, j, n, len_x, len_y, len_z, b);
   }
 }
 
-static void assign_periodic (Memindex m, int i, int j, int k, int len, void * b)
+// static void assign_periodic (Memindex m, int i, int j, int k, int len, void * b)
+// {
+//   periodic_function (m, i, j, k, len, b, mem_assign);
+// }
+static void assign_periodic (Memindex m, int i, int j, int k, int len_x, int len_y, int len_z, void * b)
 {
-  periodic_function (m, i, j, k, len, b, mem_assign);
+  periodic_function (m, i, j, k, len_x, len_y, len_z, b, mem_assign);
 }
 
-static void free_periodic (Memindex m, int i, int j, int k, int len)
+// static void free_periodic (Memindex m, int i, int j, int k, int len)
+// {
+//   periodic_function (m, i, j, k, len, NULL, (PeriodicFunction) mem_free);
+// }
+static void free_periodic (Memindex m, int i, int j, int k, int len_x, int len_y, int len_z)
 {
-  periodic_function (m, i, j, k, len, NULL, (PeriodicFunction) mem_free);
+  periodic_function (m, i, j, k, len_x, len_y, len_z, NULL, (PeriodicFunction) mem_free);
 }
 #endif // dimension == 3
 
@@ -952,12 +1125,14 @@ static void alloc_children (Point point)
   int i = 2*point.i - GHOSTS;
   for (int k = 0; k < 2; k++, i++) {
 #if dimension == 1
-    assign_periodic (L->m, i, L->len, b);
+    // assign_periodic (L->m, i, L->len, b);
+    assign_periodic (L->m, i, L->len_x, b);
     b += len;
 #elif dimension == 2
     int j = 2*point.j - GHOSTS;
     for (int l = 0; l < 2; l++, j++) {
-      assign_periodic (L->m, i, j, L->len, b);
+      // assign_periodic (L->m, i, j, L->len, b);
+      assign_periodic (L->m, i, j, L->len_x, L->len_y, b);
       b += len;
     }
 #else // dimension == 3
@@ -965,7 +1140,8 @@ static void alloc_children (Point point)
     for (int l = 0; l < 2; l++, j++) {
       int m = 2*point.k - GHOSTS;
       for (int n = 0; n < 2; n++, m++) {
-	assign_periodic (L->m, i, j, m, L->len, b);
+	// assign_periodic (L->m, i, j, m, L->len, b);
+	assign_periodic (L->m, i, j, m, L->len_x, L->len_y, L->len_z, b);
 	b += len;
       }
     }
@@ -991,7 +1167,8 @@ static void free_children (Point point)
   assert (mem_data (L->m,i));
   mempool_free (L->pool, mem_data (L->m,i));
   for (int k = 0; k < 2; k++, i++)
-    free_periodic (L->m, i, L->len);
+    // free_periodic (L->m, i, L->len);
+    free_periodic (L->m, i, L->len_x);
   if (--L->nc == 0) {
     destroy_layer (L);
     assert (point.level + 1 == grid->depth);
@@ -1008,7 +1185,8 @@ static void free_children (Point point)
   mempool_free (L->pool, mem_data (L->m,i,j));
   for (int k = 0; k < 2; k++)
     for (int l = 0; l < 2; l++)
-      free_periodic (L->m, i + k, j + l, L->len);
+      // free_periodic (L->m, i + k, j + l, L->len);
+      free_periodic (L->m, i + k, j + l, L->len_x, L->len_y);
   if (--L->nc == 0) {
     destroy_layer (L);
     assert (point.level + 1 == grid->depth);
@@ -1029,7 +1207,8 @@ static void free_children (Point point)
     for (int l = 0; l < 2; l++, j++) {
       int m = 2*point.k - GHOSTS;
       for (int n = 0; n < 2; n++, m++)
-	free_periodic (L->m, i, j, m, L->len);
+	// free_periodic (L->m, i, j, m, L->len);
+	free_periodic (L->m, i, j, m, L->len_x, L->len_y, L->len_z);
     }
   }
   if (--L->nc == 0) {
@@ -1078,52 +1257,66 @@ void realloc_scalar (int size)
   datasize += size;
   /* the root level is allocated differently */
   Layer * L = q->L[0];
-  foreach_mem (L->m, L->len, 1) {
 #if dimension == 1
+  foreach_mem (L->m, L->len_x, 1) {
     char * p = (char *) realloc (mem_data (L->m, point.i), newlen*sizeof(char));
-    assign_periodic (L->m, point.i, L->len, p);
+    // assign_periodic (L->m, point.i, L->len, p);
+    assign_periodic (L->m, point.i, L->len_x, p);
+  }
 #elif dimension == 2
+  foreach_mem (L->m, L->len_x, L->len_y, 1) {
     char * p = (char *) realloc (mem_data (L->m, point.i, point.j),
 				 newlen*sizeof(char));
-    assign_periodic (L->m, point.i, point.j, L->len, p);
+    // assign_periodic (L->m, point.i, point.j, L->len, p);
+    assign_periodic (L->m, point.i, point.j, L->len_x, L->len_y, p);
+  }
 #else
+  foreach_mem (L->m, L->len_x, L->len_y, L->len_z, 1) {
     char * p = (char *) realloc (mem_data (L->m, point.i, point.j, point.k),
 				 newlen*sizeof(char));
-    assign_periodic (L->m, point.i, point.j, point.k, L->len, p);
-#endif
+    // assign_periodic (L->m, point.i, point.j, point.k, L->len, p);
+    assign_periodic (L->m, point.i, point.j, point.k, L->len_x, L->len_y, L->len_z, p);
   }
+#endif
   /* all other levels */
   for (int l = 1; l <= depth(); l++) {
     Layer * L = q->L[l];
     Mempool * oldpool = L->pool;
     L->pool = mempool_new (poolsize (l, newlen), (1 << dimension)*newlen);
-    foreach_mem (L->m, L->len, 2) {
-      char * new = (char *) mempool_alloc (L->pool);
 #if dimension == 1
+    foreach_mem (L->m, L->len_x, 2) {
+      char * new = (char *) mempool_alloc (L->pool);
       for (int k = 0; k < 2; k++) {
-	memcpy (new, mem_data (L->m, point.i + k), oldlen);
-	assign_periodic (L->m, point.i + k, L->len, new);
-	new += newlen;
+ 	      memcpy (new, mem_data (L->m, point.i + k), oldlen);
+	      // assign_periodic (L->m, point.i + k, L->len, new);
+	      assign_periodic (L->m, point.i + k, L->len_x, new);
+	      new += newlen;
       }
-#elif dimension == 2
-      for (int k = 0; k < 2; k++)
-	for (int o = 0; o < 2; o++) {
-	  memcpy (new, mem_data (L->m, point.i + k,point.j + o), oldlen);
-	  assign_periodic (L->m, point.i + k, point.j + o, L->len, new);
-	  new += newlen;
-	}
-#else // dimension == 3
-      for (int l = 0; l < 2; l++)
-	for (int m = 0; m < 2; m++)
-	  for (int n = 0; n < 2; n++) {
-	    memcpy (new, mem_data (L->m, point.i + l, point.j + m, point.k + n),
-		    oldlen);
-	    assign_periodic (L->m, point.i + l, point.j + m, point.k + n,
-				 L->len, new);
-	    new += newlen;
-	  }
-#endif // dimension == 3
     }
+#elif dimension == 2
+    foreach_mem (L->m, L->len_x, L->len_y, 2) {
+      char * new = (char *) mempool_alloc (L->pool);
+      for (int k = 0; k < 2; k++)
+	      for (int o = 0; o < 2; o++) {
+	        memcpy (new, mem_data (L->m, point.i + k,point.j + o), oldlen);
+	        // assign_periodic (L->m, point.i + k, point.j + o, L->len, new);
+	        assign_periodic (L->m, point.i + k, point.j + o, L->len_x, L->len_y, new);
+	        new += newlen;
+	      }
+    }
+#else // dimension == 3
+    foreach_mem (L->m, L->len_x, L->len_y, L->len_z, 2) {
+      char * new = (char *) mempool_alloc (L->pool);
+      for (int l = 0; l < 2; l++)
+	      for (int m = 0; m < 2; m++)
+	        for (int n = 0; n < 2; n++) {
+	          memcpy (new, mem_data (L->m, point.i + l, point.j + m, point.k + n), oldlen);
+	          // assign_periodic (L->m, point.i + l, point.j + m, point.k + n, L->len, new);
+	          assign_periodic (L->m, point.i + l, point.j + m, point.k + n, L->len_x, L->len_y, L->len_z, new);
+	          new += newlen;
+	        }
+    }
+#endif // dimension == 3
     mempool_destroy (oldpool);
   }
 }
@@ -1472,15 +1665,19 @@ void free_grid (void)
   /* low-level memory management */
   /* the root level is allocated differently */
   Layer * L = q->L[0];
-  foreach_mem (L->m, L->len, 1) {
 #if dimension == 1
+  foreach_mem (L->m, L->len_x, 1) {
     free (mem_data (L->m, point.i));
-#elif dimension == 2
-    free (mem_data (L->m, point.i, point.j));
-#else // dimension == 3
-    free (mem_data (L->m, point.i, point.j, point.k));
-#endif // dimension == 3
   }
+#elif dimension == 2
+  foreach_mem (L->m, L->len_x, L->len_y, 1) {
+    free (mem_data (L->m, point.i, point.j));
+  }
+#else // dimension == 3
+  foreach_mem (L->m, L->len_x, L->len_y, L->len_z, 1) {
+    free (mem_data (L->m, point.i, point.j, point.k));
+  }
+#endif // dimension == 3
   for (int l = 0; l <= depth(); l++)
     destroy_layer (q->L[l]);
   q->L = &(q->L[-1]);
@@ -1495,6 +1692,111 @@ void free_grid (void)
 
 static void refine_level (int depth);
 
+// trace
+// void init_grid (int n)
+// {
+//   // check 64 bits structure alignment
+//   assert (sizeof(Cell) % 8 == 0);
+  
+//   free_grid();
+//   int depth = 0;
+//   while (n > 1) {
+//     if (n % 2) {
+//       fprintf (stderr, "tree: N must be a power-of-two\n");
+//       exit (1);
+//     }
+//     n /= 2;
+//     depth++;
+//   }
+//   Tree * q = qcalloc (1, Tree);
+//   grid = (Grid *) q;
+//   grid->depth = 0;
+
+//   /* low-level memory management */
+//   q->L = qmalloc (2, Layer *);
+//   /* make sure we don't try to access level -1 */
+//   q->L[0] = NULL; q->L = &(q->L[1]);
+//   /* initialise the root cell */
+//   Layer * L = new_layer (0);
+//   q->L[0] = L;
+// #if dimension == 1
+//   for (int i = Period.x*GHOSTS; i < L->len - Period.x*GHOSTS; i++)
+//     assign_periodic (L->m, i, L->len, 
+// 		     (char *) calloc (1, sizeof(Cell) + datasize));
+//   CELL(mem_data (L->m,GHOSTS)).flags |= leaf;
+//   if (pid() == 0)
+//     CELL(mem_data (L->m,GHOSTS)).flags |= active;
+//   for (int k = -GHOSTS*(1 - Period.x); k <= GHOSTS*(1 - Period.x); k++)
+//     CELL(mem_data (L->m,GHOSTS+k)).pid = (k < 0 ? -1 - left :
+// 					  k > 0 ? -1 - right :
+// 					  0);
+//   CELL(mem_data (L->m,GHOSTS)).pid = 0;
+// #elif dimension == 2
+//   for (int i = Period.x*GHOSTS; i < L->len - Period.x*GHOSTS; i++)
+//     for (int j = Period.y*GHOSTS; j < L->len - Period.y*GHOSTS; j++)
+//       assign_periodic (L->m, i, j, L->len,
+// 		       (char *) calloc (1, sizeof(Cell) + datasize));
+//   CELL(mem_data (L->m,GHOSTS,GHOSTS)).flags |= leaf;
+//   if (pid() == 0)
+//     CELL(mem_data (L->m,GHOSTS,GHOSTS)).flags |= active;
+//   for (int k = - GHOSTS*(1 - Period.x); k <= GHOSTS*(1 - Period.x); k++)
+//     for (int l = -GHOSTS*(1 - Period.y); l <= GHOSTS*(1 - Period.y); l++)
+//       CELL(mem_data (L->m,GHOSTS+k,GHOSTS+l)).pid =
+// 	(k < 0 ? -1 - left :
+// 	 k > 0 ? -1 - right :
+// 	 l > 0 ? -1 - top :
+// 	 l < 0 ? -1 - bottom :
+// 	 0);
+//   CELL(mem_data (L->m,GHOSTS,GHOSTS)).pid = 0;
+// #else // dimension == 3
+//   for (int i = Period.x*GHOSTS; i < L->len - Period.x*GHOSTS; i++)
+//     for (int j = Period.y*GHOSTS; j < L->len - Period.y*GHOSTS; j++)
+//       for (int k = Period.z*GHOSTS; k < L->len - Period.z*GHOSTS; k++)
+// 	assign_periodic (L->m, i, j, k, L->len,
+// 			 (char *) calloc (1, sizeof(Cell) + datasize));
+//   CELL(mem_data (L->m,GHOSTS,GHOSTS,GHOSTS)).flags |= leaf;
+//   if (pid() == 0)
+//     CELL(mem_data (L->m,GHOSTS,GHOSTS,GHOSTS)).flags |= active;
+//   for (int k = - GHOSTS*(1 - Period.x); k <= GHOSTS*(1 - Period.x); k++)
+//     for (int l = -GHOSTS*(1 - Period.y); l <= GHOSTS*(1 - Period.y); l++)
+//       for (int n = -GHOSTS*(1 - Period.z); n <= GHOSTS*(1 - Period.z); n++)
+// 	CELL(mem_data (L->m,GHOSTS+k,GHOSTS+l,GHOSTS+n)).pid =
+// 	  (k > 0 ? -1 - right :
+// 	   k < 0 ? -1 - left :
+// 	   l > 0 ? -1 - top :
+// 	   l < 0 ? -1 - bottom :
+// 	   n > 0 ? -1 - front :
+// 	   n < 0 ? -1 - back :
+// 	   0);
+//   CELL(mem_data (L->m,GHOSTS,GHOSTS,GHOSTS)).pid = 0;
+// #endif // dimension == 3
+//   q->active = qcalloc (1, CacheLevel);
+//   q->prolongation = qcalloc (1, CacheLevel);
+//   q->boundary = qcalloc (1, CacheLevel);
+//   q->restriction = qcalloc (1, CacheLevel);
+//   q->dirty = true;
+//   N = 1 << depth;
+// @if _MPI
+//   void mpi_boundary_new();
+//   mpi_boundary_new();
+// @endif
+//   // boundaries
+//   Boundary * b = qcalloc (1, Boundary);
+//   b->level = box_boundary_level;
+//   b->restriction = masked_boundary_restriction;
+//   add_boundary (b);
+//   refine_level (depth);
+//   reset (all, 0.);
+//   update_cache();
+// }
+
+int log_base2 (int n) {
+  int m = n, r = 0;
+  while (m > 1)
+    m /= 2, r++;
+  return (1 << r) < n ? r + 1 : r;
+}
+
 trace
 void init_grid (int n)
 {
@@ -1502,83 +1804,88 @@ void init_grid (int n)
   assert (sizeof(Cell) % 8 == 0);
   
   free_grid();
-  int depth = 0;
-  while (n > 1) {
-    if (n % 2) {
-      fprintf (stderr, "tree: N must be a power-of-two\n");
-      exit (1);
-    }
-    n /= 2;
-    depth++;
-  }
+  int depth = log_base2(n/Dimensions.x);
+
   Tree * q = qcalloc (1, Tree);
   grid = (Grid *) q;
   grid->depth = 0;
 
   /* low-level memory management */
   q->L = qmalloc (2, Layer *);
+
   /* make sure we don't try to access level -1 */
-  q->L[0] = NULL; q->L = &(q->L[1]);
+  q->L[0] = NULL; 
+  q->L = &(q->L[1]);
+
   /* initialise the root cell */
   Layer * L = new_layer (0);
   q->L[0] = L;
+
 #if dimension == 1
-  for (int i = Period.x*GHOSTS; i < L->len - Period.x*GHOSTS; i++)
-    assign_periodic (L->m, i, L->len, 
-		     (char *) calloc (1, sizeof(Cell) + datasize));
-  CELL(mem_data (L->m,GHOSTS)).flags |= leaf;
-  if (pid() == 0)
-    CELL(mem_data (L->m,GHOSTS)).flags |= active;
-  for (int k = -GHOSTS*(1 - Period.x); k <= GHOSTS*(1 - Period.x); k++)
-    CELL(mem_data (L->m,GHOSTS+k)).pid = (k < 0 ? -1 - left :
-					  k > 0 ? -1 - right :
-					  0);
-  CELL(mem_data (L->m,GHOSTS)).pid = 0;
+  for (int i = Period.x*GHOSTS; i < L->len_x - Period.x*GHOSTS; i++) {
+    assign_periodic (L->m, i, L->len_x, (char *) calloc (1, sizeof(Cell) + datasize));
+  }
+  for (int i = GHOSTS; i < GHOSTS + Dimensions.x; i++) {
+    CELL(mem_data (L->m, i)).flags |= leaf;
+    if (pid() == 0)
+      CELL(mem_data (L->m, i)).flags |= active;
+    CELL(mem_data (L->m, i)).pid = 0;
+  }
+  for (int i = Period.x*GHOSTS; i < L->len_x - Period.x*GHOSTS; i++)
+    CELL(mem_data (L->m, i)).pid =
+      (!Period.x && i < GHOSTS ? -1 - left :
+       !Period.x && i >= GHOSTS + Dimensions.x ? -1 - right :
+       0);
 #elif dimension == 2
-  for (int i = Period.x*GHOSTS; i < L->len - Period.x*GHOSTS; i++)
-    for (int j = Period.y*GHOSTS; j < L->len - Period.y*GHOSTS; j++)
-      assign_periodic (L->m, i, j, L->len,
-		       (char *) calloc (1, sizeof(Cell) + datasize));
-  CELL(mem_data (L->m,GHOSTS,GHOSTS)).flags |= leaf;
-  if (pid() == 0)
-    CELL(mem_data (L->m,GHOSTS,GHOSTS)).flags |= active;
-  for (int k = - GHOSTS*(1 - Period.x); k <= GHOSTS*(1 - Period.x); k++)
-    for (int l = -GHOSTS*(1 - Period.y); l <= GHOSTS*(1 - Period.y); l++)
-      CELL(mem_data (L->m,GHOSTS+k,GHOSTS+l)).pid =
-	(k < 0 ? -1 - left :
-	 k > 0 ? -1 - right :
-	 l > 0 ? -1 - top :
-	 l < 0 ? -1 - bottom :
-	 0);
-  CELL(mem_data (L->m,GHOSTS,GHOSTS)).pid = 0;
+  for (int i = Period.x*GHOSTS; i < L->len_x - Period.x*GHOSTS; i++)
+    for (int j = Period.y*GHOSTS; j < L->len_y - Period.y*GHOSTS; j++)
+      assign_periodic (L->m, i, j, L->len_x, L->len_y, (char *) calloc (1, sizeof(Cell) + datasize));
+  for (int i = GHOSTS; i < GHOSTS + Dimensions.x; i++)
+    for (int j = GHOSTS; j < GHOSTS + Dimensions.y; j++) {
+      CELL(mem_data (L->m, i, j)).flags |= leaf;
+      if (pid() == 0)
+        CELL(mem_data (L->m, i, j)).flags |= active;
+      CELL(mem_data (L->m, i, j)).pid = 0;
+    }
+  for (int i = Period.x*GHOSTS; i < L->len_x - Period.x*GHOSTS; i++)
+    for (int j = Period.y*GHOSTS; j < L->len_y - Period.y*GHOSTS; j++)
+      CELL(mem_data (L->m, i, j)).pid =
+        (!Period.x && i < GHOSTS ? -1 - left :
+         !Period.x && i >= GHOSTS + Dimensions.x ? -1 - right :
+         !Period.y && j >= GHOSTS + Dimensions.y ? -1 - top :
+         !Period.y && j < GHOSTS ? -1 - bottom :
+         0);
 #else // dimension == 3
-  for (int i = Period.x*GHOSTS; i < L->len - Period.x*GHOSTS; i++)
-    for (int j = Period.y*GHOSTS; j < L->len - Period.y*GHOSTS; j++)
-      for (int k = Period.z*GHOSTS; k < L->len - Period.z*GHOSTS; k++)
-	assign_periodic (L->m, i, j, k, L->len,
-			 (char *) calloc (1, sizeof(Cell) + datasize));
-  CELL(mem_data (L->m,GHOSTS,GHOSTS,GHOSTS)).flags |= leaf;
-  if (pid() == 0)
-    CELL(mem_data (L->m,GHOSTS,GHOSTS,GHOSTS)).flags |= active;
-  for (int k = - GHOSTS*(1 - Period.x); k <= GHOSTS*(1 - Period.x); k++)
-    for (int l = -GHOSTS*(1 - Period.y); l <= GHOSTS*(1 - Period.y); l++)
-      for (int n = -GHOSTS*(1 - Period.z); n <= GHOSTS*(1 - Period.z); n++)
-	CELL(mem_data (L->m,GHOSTS+k,GHOSTS+l,GHOSTS+n)).pid =
-	  (k > 0 ? -1 - right :
-	   k < 0 ? -1 - left :
-	   l > 0 ? -1 - top :
-	   l < 0 ? -1 - bottom :
-	   n > 0 ? -1 - front :
-	   n < 0 ? -1 - back :
+  for (int i = Period.x*GHOSTS; i < L->len_x - Period.x*GHOSTS; i++)
+    for (int j = Period.y*GHOSTS; j < L->len_y - Period.y*GHOSTS; j++)
+      for (int k = Period.z*GHOSTS; k < L->len_z - Period.z*GHOSTS; k++)
+	      assign_periodic (L->m, i, j, k, L->len_x, L->len_y, L->len_z, (char *) calloc (1, sizeof(Cell) + datasize));
+  for (int i = GHOSTS; i < GHOSTS + Dimensions.x; i++)
+    for (int j = GHOSTS; j < GHOSTS + Dimensions.y; j++)
+      for (int k = GHOSTS; k < GHOSTS + Dimensions.z; k++) {
+        CELL(mem_data (L->m, i, j, k)).flags |= leaf;
+        if (pid() == 0)
+          CELL(mem_data (L->m, i, j, k)).flags |= active;
+        CELL(mem_data (L->m, i, j, k)).pid = 0;
+      }
+  for (int i = Period.x*GHOSTS; i < L->len_x - Period.x*GHOSTS; i++)
+    for (int j = Period.y*GHOSTS; j < L->len_y - Period.y*GHOSTS; j++)
+      for (int k = Period.z*GHOSTS; k < L->len_z - Period.z*GHOSTS; k++)
+	CELL(mem_data (L->m, i, j, k)).pid =
+	  (!Period.x && i >= GHOSTS + Dimensions.x ? -1 - right :
+	   !Period.x && i < GHOSTS ? -1 - left :
+	   !Period.y && j >= GHOSTS + Dimensions.y ? -1 - top :
+	   !Period.y && j < GHOSTS ? -1 - bottom :
+	   !Period.z && k >= GHOSTS + Dimensions.z ? -1 - front :
+	   !Period.z && k < GHOSTS ? -1 - back :
 	   0);
-  CELL(mem_data (L->m,GHOSTS,GHOSTS,GHOSTS)).pid = 0;
 #endif // dimension == 3
   q->active = qcalloc (1, CacheLevel);
   q->prolongation = qcalloc (1, CacheLevel);
   q->boundary = qcalloc (1, CacheLevel);
   q->restriction = qcalloc (1, CacheLevel);
   q->dirty = true;
-  N = 1 << depth;
+  N = (1 << depth)*Dimensions.x;
 @if _MPI
   void mpi_boundary_new();
   mpi_boundary_new();
@@ -1633,20 +1940,22 @@ Point locate (double xp = 0., double yp = 0., double zp = 0.)
   for (int l = depth(); l >= 0; l--) {
     Point point = {0};
     point.level = l;
-    int n = 1 << point.level;
-    point.i = (xp - X0)/L0*n + GHOSTS;
+    int nx = (1 << point.level)*Dimensions.x;
+    point.i = (xp - X0)/L0*nx + GHOSTS;
 #if dimension >= 2
-    point.j = (yp - Y0)/L0*n + GHOSTS;
+    int ny = (1 << point.level)*Dimensions.y/Dimensions.x;
+    point.j = (yp - Y0)/L0*nx + GHOSTS;
 #endif
 #if dimension >= 3
-    point.k = (zp - Z0)/L0*n + GHOSTS;
+    int nz = (1 << point.level)*Dimensions.z/Dimensions.x;
+    point.k = (zp - Z0)/L0*nx + GHOSTS;
 #endif
-    if (point.i >= 0 && point.i < n + 2*GHOSTS
+    if (point.i >= 0 && point.i < nx + 2*GHOSTS
 #if dimension >= 2
-	&& point.j >= 0 && point.j < n + 2*GHOSTS
+	&& point.j >= 0 && point.j < ny + 2*GHOSTS
 #endif
 #if dimension >= 3
-	&& point.k >= 0 && point.k < n + 2*GHOSTS
+	&& point.k >= 0 && point.k < nz + 2*GHOSTS
 #endif
 	) {
       if (allocated(0) && is_local(cell) && is_leaf(cell))
@@ -1662,10 +1971,35 @@ Point locate (double xp = 0., double yp = 0., double zp = 0.)
 
 // return true if the tree is "full" i.e. all the leaves are at the
 // same level
+
+// bool tree_is_full()
+// {
+//   update_cache();
+//   return (grid->tn == 1L << grid->maxdepth*dimension);
+// }
+
 bool tree_is_full()
 {
   update_cache();
-  return (grid->tn == 1L << grid->maxdepth*dimension);
+#if dimension == 1
+  return (grid->tn == (Dimensions.x) * (1L << grid->maxdepth*dimension));
+#elif dimension == 2
+  return (grid->tn == (Dimensions.x * Dimensions.y) * (1L << grid->maxdepth*dimension));
+#else // dimension == 3
+  return (grid->tn == (Dimensions.x * Dimensions.y * Dimensions.z) * (1L << grid->maxdepth*dimension));
+#endif
+}
+
+static int tree_number_of_roots()
+{
+  int n = Dimensions.x;
+#if dimension > 1
+  n *= Dimensions.y;
+#endif
+#if dimension > 2
+  n *= Dimensions.z;
+#endif
+  return n;
 }
 
 #include "variables.h"
@@ -1729,10 +2063,24 @@ void tree_periodic (int dir)
     free_grid();
   periodic (dir);
   if (depth >= 0)
-    init_grid (1 << depth);
+    init_grid ((1 << depth)*Dimensions.x);
 }
 #define periodic(dir) tree_periodic(dir)
- 
+
+ivec dimensions (int nx = 0, int ny = 0, int nz = 0)
+{
+  if (nx != 0 || ny != 0 || nz != 0) {
+    Dimensions.x = Dimensions_scale = max(nx, 1);
+#if dimension > 1
+    Dimensions.y = max(ny, 1);
+#endif
+#if dimension > 2
+    Dimensions.z = max(nz, 1);
+#endif
+  }
+  return Dimensions;
+}
+
 @if _MPI
 #include "tree-mpi.h"
 #include "balance.h"

@@ -1154,11 +1154,6 @@ void dump (const char * file = "dump",
   strcpy (name, file);
   if (!unbuffered)
     strcat (name, "~");
-  FILE * fh = fopen (name, "w");
-  if (fh == NULL) {
-    perror (name);
-    exit (1);    
-  }
 
   scalar * dlist = dump_list (list, zero);
   scalar size[];
@@ -1166,24 +1161,40 @@ void dump (const char * file = "dump",
   struct DumpHeader header = { t, list_len(slist), iter, depth(), npe(),
 			       dump_version };
 
-#if MULTIGRID_MPI
+#if MULTIGRID_MPI || TREE
   foreach_dimension()
     header.n.x = Dimensions.x;
+#endif
+#if MULTIGRID_MPI
   MPI_Barrier (MPI_COMM_WORLD);
 #endif
 
-  if (pid() == 0)
+  long sizeofheader = 0;
+  if (pid() == 0) {
+    FILE * fh = fopen (name, "w");
+    if (fh == NULL) {
+      perror (name);
+      exit (1);
+    }
     dump_header (fh, &header, slist);
+    sizeofheader = ftell (fh);
+    fclose (fh);
+  }
+  MPI_Bcast (&sizeofheader, 1, MPI_LONG, 0, MPI_COMM_WORLD);
+  MPI_Barrier (MPI_COMM_WORLD);
+
+  FILE * fh = fopen (name, "r+");
+  if (fh == NULL) {
+    perror (name);
+    exit (1);
+  }
   
   scalar index = {-1};
   
   index = new scalar;
   z_indexing (index, false);
   int cell_size = sizeof(unsigned) + header.len*sizeof(double);
-  int sizeofheader = sizeof(header) + 4*sizeof(double);
-  for (scalar s in slist)
-    sizeofheader += sizeof(unsigned) + sizeof(char)*strlen(s.name);
-  long pos = pid() ? 0 : sizeofheader;
+  long pos = -1;
   
   subtree_size (size, false);
   
@@ -1211,6 +1222,7 @@ void dump (const char * file = "dump",
   
   free (slist);
   fclose (fh);
+  MPI_Barrier (MPI_COMM_WORLD);
   if (!unbuffered && pid() == 0)
     rename (name, file);
 }
@@ -1231,8 +1243,17 @@ bool restore (const char * file = "dump",
     exit (1);
   }
 
-#if TREE
-  init_grid (1);
+#if TREE && _MPI
+  dimensions (header.n.x, header.n.y, header.n.z);
+  init_grid (Dimensions.x);
+  foreach_cell() {
+    cell.pid = pid();
+    cell.flags |= active;
+  }
+  tree->dirty = true;
+#elif TREE
+  dimensions (header.n.x, header.n.y, header.n.z);
+  init_grid (Dimensions.x);
   foreach_cell() {
     cell.pid = pid();
     cell.flags |= active;
@@ -1339,11 +1360,7 @@ bool restore (const char * file = "dump",
   int rootlevel = 0;
 #endif
 #if TREE
-  foreach_dimension()
-    while ((1 << rootlevel) < header.n.x)
-      rootlevel++;
-  if (rootlevel > 0)
-    init_grid (1 << rootlevel);
+  rootlevel = 0;
 #endif // TREE
 #if _MPI  
   foreach_cell() {

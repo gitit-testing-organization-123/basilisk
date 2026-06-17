@@ -29,43 +29,21 @@ typedef struct {
   Array * send, * receive; // which pids do we send to/receive from
 } MpiBoundary;
 
-static int root_index (Point point);
-
 static void cache_level_init (CacheLevel * c)
 {
   c->p = NULL;
   c->n = c->nm = 0;
 }
 
-trace static bool cache_level_contains (CacheLevel * c, Point point)
-{
-  for (int i = 0; i < c->n; i++)
-    if (c->p[i].i == point.i
-#if dimension >= 2
-	&& c->p[i].j == point.j
-#endif
-#if dimension >= 3
-	&& c->p[i].k == point.k
-#endif
-	)
-      return true;
-  return false;
-}
-
 static void rcv_append (Point point, Rcv * rcv)
 {
-  bool forest = tree_number_of_roots() != 1;
-
   if (level > rcv->depth) {
     qrealloc (rcv->halo, level + 1, CacheLevel);
     for (int j = rcv->depth + 1; j <= level; j++)
       cache_level_init (&rcv->halo[j]);
     rcv->depth = level;
   }
-  
-  if (!forest || !cache_level_contains (&rcv->halo[level], point))
-    cache_level_append (&rcv->halo[level], point);
-
+  cache_level_append (&rcv->halo[level], point);
   if (level > rcv->maxdepth)
     rcv->maxdepth = level;
 }
@@ -177,7 +155,6 @@ static Boundary * mpi_boundary = NULL;
 #define COARSEN_TAG(level)  ((level) + 64)
 #define REFINE_TAG()        (128)
 #define MOVED_TAG()         (256)
-#define REQUEST_TAG()       (512)
 
 void debug_mpi (FILE * fp1);
 
@@ -788,249 +765,6 @@ static int root_pids (Point point, Array * pids)
   return pids->len/sizeof(int);
 }
 
-static bool has_local_child (Point point);
-
-static bool root_has_local_data (Point point)
-{
-  if (is_local(cell))
-    return true;
-  return cell.neighbors && has_local_child (point);
-}
-
-static void request_level0_root_neighbors (Point point,
-					   SndRcv * mpi_level_root,
-					   SndRcv * restriction,
-					   unsigned short used)
-{
-  if (level != 0 || !root_has_local_data (point))
-    return;
-
-  /* Forest roots have real same-level neighbors.  A level-1 child can need
-     either its remote parent root or an adjacent remote root as a coarse
-     prolongation stencil, before the usual old sender-side scan sees it. */
-  Point root = point;
-  if (is_remote(cell)) {
-    rcv_pid_append (mpi_level_root->rcv, cell.pid, root);
-    rcv_pid_append (restriction->rcv, cell.pid, root);
-    cell.flags |= used;
-  }
-
-  foreach_neighbor(1) {
-    if (!allocated(0))
-      continue;
-    if (point.i == root.i
-#if dimension >= 2
-	&& point.j == root.j
-#endif
-#if dimension >= 3
-	&& point.k == root.k
-#endif
-	)
-      continue;
-    if (is_remote(cell)) {
-      rcv_pid_append (mpi_level_root->rcv, cell.pid, point);
-      rcv_pid_append (restriction->rcv, cell.pid, point);
-      cell.flags |= used;
-    }
-  }
-}
-
-static int coarse_request_count (Rcv * rcv, int maxlevel)
-{
-  int depth = min (maxlevel, rcv->depth);
-  int n = 1;
-  bool non_empty = false;
-  for (int l = 0; l <= depth; l++) {
-    int len = rcv->halo[l].n;
-    n++;
-    if (len > 0) {
-      non_empty = true;
-      n += dimension*len;
-    }
-  }
-  return non_empty ? n : 0;
-}
-
-static int coarse_request_pack (Rcv * rcv, int * buf, int maxlevel)
-{
-  int * start = buf;
-  int depth = min (maxlevel, rcv->depth);
-  *buf++ = depth;
-  for (int l = 0; l <= depth; l++) {
-    CacheLevel * halo = &rcv->halo[l];
-    *buf++ = halo->n;
-    for (int i = 0; i < halo->n; i++) {
-      *buf++ = halo->p[i].i;
-#if dimension >= 2
-      *buf++ = halo->p[i].j;
-#endif
-#if dimension >= 3
-      *buf++ = halo->p[i].k;
-#endif
-    }
-  }
-  return buf - start;
-}
-
-static void coarse_request_unpack (RcvPid * snd, int requester, int * buf,
-				   int count)
-{
-  int * start = buf;
-  int depth = *buf++;
-  for (int l = 0; l <= depth; l++) {
-    int n = *buf++;
-    for (int i = 0; i < n; i++) {
-      Point point = {0};
-      point.level = l;
-      point.i = *buf++;
-#if dimension >= 2
-      point.j = *buf++;
-#endif
-#if dimension >= 3
-      point.k = *buf++;
-#endif
-      rcv_pid_append (snd, requester, point);
-    }
-  }
-  assert (buf - start == count);
-}
-
-static void rcv_clear_coarse (Rcv * rcv, int maxlevel)
-{
-  int depth = min (maxlevel, rcv->depth);
-  for (int l = 0; l <= depth; l++) {
-    free (rcv->halo[l].p);
-    cache_level_init (&rcv->halo[l]);
-  }
-}
-
-static void rcv_pid_clear_coarse (RcvPid * p, int maxlevel)
-{
-  for (int i = 0; i < p->npid; i++)
-    rcv_clear_coarse (&p->rcv[i], maxlevel);
-}
-
-static void rcv_filter_level0_owner (Rcv * rcv)
-{
-  if (rcv->depth < 0 || rcv->halo[0].n == 0)
-    return;
-
-  CacheLevel * halo = &rcv->halo[0];
-  int n = 0;
-  for (int i = 0; i < halo->n; i++) {
-    Point point = {0};
-    point.level = 0;
-    point.i = halo->p[i].i;
-#if dimension >= 2
-    point.j = halo->p[i].j;
-#endif
-#if dimension >= 3
-    point.k = halo->p[i].k;
-#endif
-    if (allocated(0) && cell.pid >= 0 && cell.pid != rcv->pid)
-      continue;
-    halo->p[n++] = halo->p[i];
-  }
-  halo->n = n;
-}
-
-static void rcv_pid_filter_level0_owners (RcvPid * p)
-{
-  for (int i = 0; i < p->npid; i++)
-    rcv_filter_level0_owner (&p->rcv[i]);
-}
-
-/* Replace only coarse points in the old sender-side lists with the exact
-   points requested by remote ranks.  Finer levels remain controlled by the old
-   sender-side scan. */
-static void snd_coarse_from_rcv_requests (SndRcv * m, int maxlevel)
-{
-  int np = npe();
-  int * sendcounts = qcalloc (np, int);
-  int * recvcounts = qcalloc (np, int);
-
-  for (int i = 0; i < m->rcv->npid; i++) {
-    Rcv * rcv = &m->rcv->rcv[i];
-    sendcounts[rcv->pid] = coarse_request_count (rcv, maxlevel);
-  }
-
-  MPI_Alltoall (sendcounts, 1, MPI_INT, recvcounts, 1, MPI_INT,
-		MPI_COMM_WORLD);
-
-  rcv_pid_clear_coarse (m->snd, maxlevel);
-
-  int ** sendbufs = qcalloc (np, int *);
-  int ** recvbufs = qcalloc (np, int *);
-  MPI_Request * requests = qmalloc (2*np, MPI_Request);
-  int nr = 0;
-
-  for (int p = 0; p < np; p++)
-    if (recvcounts[p] > 0) {
-      recvbufs[p] = qmalloc (recvcounts[p], int);
-      MPI_Irecv (recvbufs[p], recvcounts[p], MPI_INT, p, REQUEST_TAG(),
-		 MPI_COMM_WORLD, &requests[nr++]);
-    }
-
-  for (int i = 0; i < m->rcv->npid; i++) {
-    Rcv * rcv = &m->rcv->rcv[i];
-    int dest = rcv->pid;
-    if (sendcounts[dest] > 0) {
-      sendbufs[dest] = qmalloc (sendcounts[dest], int);
-      int n = coarse_request_pack (rcv, sendbufs[dest], maxlevel);
-      assert (n == sendcounts[dest]);
-      MPI_Isend (sendbufs[dest], sendcounts[dest], MPI_INT, dest,
-		 REQUEST_TAG(), MPI_COMM_WORLD, &requests[nr++]);
-    }
-  }
-
-  if (nr > 0)
-    MPI_Waitall (nr, requests, MPI_STATUSES_IGNORE);
-
-  for (int p = 0; p < np; p++) {
-    if (recvcounts[p] > 0)
-      coarse_request_unpack (m->snd, p, recvbufs[p], recvcounts[p]);
-    free (sendbufs[p]);
-    free (recvbufs[p]);
-  }
-
-  free (requests);
-  free (sendbufs);
-  free (recvbufs);
-  free (sendcounts);
-  free (recvcounts);
-}
-
-static void sync_level0_root_pids()
-{
-  int numroots = tree_number_of_roots();
-  if (numroots <= 1)
-    return;
-
-  int * owners = qcalloc (numroots, int);
-
-  foreach_cell_all() {
-    if (level == 0) {
-      int r = root_index (point);
-      if (r >= 0 && r < numroots && is_local(cell))
-	owners[r] = pid() + 1;
-      continue;
-    }
-  }
-
-  mpi_all_reduce_array (owners, MPI_INT, MPI_MAX, numroots);
-
-  foreach_cell_all() {
-    if (level == 0) {
-      int r = root_index (point);
-      if (r >= 0 && r < numroots && owners[r] > 0 && cell.pid >= 0)
-	cell.pid = owners[r] - 1;
-      continue;
-    }
-  }
-
-  free (owners);
-}
-
 // turns on tree_check() and co with outputs controlled by the condition
 // #define DEBUGCOND (pid() >= 300 && pid() <= 400 && t > 0.0784876)
 
@@ -1138,18 +872,6 @@ void mpi_boundary_update_buffers()
   snd_rcv_free (restriction);
   
   static const unsigned short used = 1 << user;
-
-  bool forest = tree_number_of_roots () != 1;
-
-  if (forest) {
-    sync_level0_root_pids();
-    foreach_cell() {
-      request_level0_root_neighbors (point, mpi_level_root, restriction, used);
-      if (is_leaf(cell))
-        continue;
-    }
-  } 
-
   foreach_cell() {
     if (is_active(cell) && !is_border(cell))
       /* We skip the interior of the local domain.
@@ -1262,22 +984,11 @@ void mpi_boundary_update_buffers()
       if (level == l) {
 	if (level > 0 && (cell.pid < 0 || is_local(cell) || (cell.flags & used)))
 	  aparent(0).flags |= keep;
-	if (is_refined(cell) && !(cell.flags & keep) &&
-	    !(level == 0 && (cell.flags & used)))
+	if (is_refined(cell) && !(cell.flags & keep))
 	  coarsen_cell (point, NULL);
 	cell.flags &= ~(used|keep);
 	continue; // level == l
       }
-
-  if (forest) {
-    rcv_pid_filter_level0_owners (mpi_level->rcv);
-    rcv_pid_filter_level0_owners (mpi_level_root->rcv);
-    rcv_pid_filter_level0_owners (restriction->rcv);
-
-    snd_coarse_from_rcv_requests (mpi_level, 1);
-    snd_coarse_from_rcv_requests (mpi_level_root, 0);
-    snd_coarse_from_rcv_requests (restriction, 0);
-  }
 
   /* we update the list of send/receive pids */
   m->send->len = m->receive->len = 0;
@@ -1721,20 +1432,6 @@ foreach()
 
 In parallel, this is a bit more difficult. */
 
-static int root_index(Point point) {
-  int ix = point.i - GHOSTS;
-#if dimension == 1
-  return ix;
-#elif dimension == 2
-  int iy = point.j - GHOSTS;
-  return ix * Dimensions.y + iy;
-#else // dimension == 3
-  int iy = point.j - GHOSTS;
-  int iz = point.k - GHOSTS;
-  return (ix * Dimensions.y + iy) * Dimensions.z + iz;
-#endif
-}
-
 trace
 double z_indexing (scalar index, bool leaves)
 {
@@ -1745,45 +1442,20 @@ double z_indexing (scalar index, bool leaves)
   subtree_size (size, leaves);
 
   /**
-  Each level-0 root owner contributes to the global subtree size for a root.
-  We use MPI_MAX so duplicated remote copies do not get double-counted within
-  a global root. */
-
-  int numroots = tree_number_of_roots();
-  double * roots = qcalloc (numroots, double);
-  double * offset = qcalloc (numroots, double);
-
-  foreach_cell() {
-    if (level == 0 && is_local(cell)) {
-      int r = root_index(point);
-      if (r >= 0 && r < numroots && size[] > roots[r])
-	roots[r] = size[];
-      continue;
-    }
-  }
-
-  mpi_all_reduce_array (roots, MPI_DOUBLE, MPI_MAX, numroots);
-
-  double total = 0.;
-
-  for (int r = 0; r < numroots; r++) {
-    offset[r] = total;
-    total += roots[r];
-  }
+  The maximum index value is the size of the entire tree (i.e. the
+  value of `size` in the root cell on the master process) minus
+  one. */
+  
+  double maxi = -1.;
+  if (pid() == 0)
+    foreach_level(0, serial)
+      maxi = size[] - 1.;
 
   /**
-  Seed every allocated real root with its global forest prefix. Child
-  propagation below is unchanged. */
+  fixme: doc */
   
-  foreach_cell() {
-    if (level == 0) {
-      int r = root_index(point);
-      if (r >= 0 && r < numroots)
-	index[] = offset[r];
-      continue;
-    }
-  }
-
+  foreach_level(0)
+    index[] = 0;
   for (int l = 0; l < depth(); l++) {
     boundary_iterate (restriction, {index}, l);
     foreach_cell() {
@@ -1818,8 +1490,5 @@ double z_indexing (scalar index, bool leaves)
   }
   boundary_iterate (restriction, {index}, depth());
 
-  free (roots);
-  free (offset);
-
-  return pid() == 0 ? total - 1. : -1.;
+  return maxi;
 }
