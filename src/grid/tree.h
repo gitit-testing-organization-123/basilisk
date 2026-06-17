@@ -371,7 +371,7 @@ macro POINT_VARIABLES (Point point = point) {
 #endif
 }
 
-#include "foreach_cell_forest.h"
+#include "foreach_cell.h"
 
 #if dimension == 1
 macro1 foreach_child (Point point = point, break = (_k = 2)) {
