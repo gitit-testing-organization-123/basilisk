@@ -1537,6 +1537,34 @@ static int balanced_pid (long index, long nt, int nproc)
   return min(nproc - 1, pid);
 }
 
+static long restore_mpi_count_cells (FILE * fp, long start, long cell_size)
+{
+  long index = 0, nt = 0;
+  for (int r = 0; r < tree_number_of_roots(); r++) {
+    if (fseek (fp, start + index*cell_size + sizeof(unsigned), SEEK_SET) < 0) {
+      perror ("restore(): error while seeking root size");
+      exit (1);
+    }
+    double size;
+    if (fread (&size, sizeof(double), 1, fp) != 1) {
+      fprintf (stderr, "restore(): error: expecting root size\n");
+      exit (1);
+    }
+    long n = size;
+    if (n < 1) {
+      fprintf (stderr, "restore(): error: invalid root size %g\n", size);
+      exit (1);
+    }
+    nt += n;
+    index += n;
+  }
+  if (fseek (fp, start, SEEK_SET) < 0) {
+    perror ("restore(): error while seeking");
+    exit (1);
+  }
+  return nt;
+}
+
 // static partitioning: only used for tests
 trace
 void mpi_partitioning()
@@ -1583,9 +1611,11 @@ void mpi_partitioning()
 
 void restore_mpi (FILE * fp, scalar * list1)
 {
-  long index = 0, nt = 0, start = ftell (fp);
-  scalar size[], * list = list_concat ({size}, list1);;
+  long index = 0, start = ftell (fp);
+  scalar size[], * list = list_concat ({size}, list1);
   long offset = sizeof(double)*list_len(list);
+  long cell_size = sizeof(unsigned) + offset;
+  long nt = restore_mpi_count_cells (fp, start, cell_size);
 
   // read local cells
   static const unsigned short set = 1 << user;
@@ -1606,8 +1636,6 @@ void restore_mpi (FILE * fp, scalar * list1)
 	if (s.i != INT_MAX)
 	  s[] = val;
       }
-      if (level == 0)
-	nt = size[];
       cell.pid = balanced_pid (index, nt, npe());
       cell.flags |= set;
       if (!(flags & leaf) && is_leaf(cell)) {
