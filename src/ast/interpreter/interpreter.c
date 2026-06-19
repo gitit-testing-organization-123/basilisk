@@ -43,6 +43,7 @@ display local information during interpretation.
 #include <limits.h>
 #include "ast.h"
 #include "symbols.h"
+#include "paths.h"
 
 #include "khash.h"
 KHASH_MAP_INIT_INT64(INT64, void *)
@@ -1295,8 +1296,10 @@ Value * constant_value (Ast * n, Stack * stack)
 #if 0
     {
       AstTerminal * t = ast_terminal (n);
-      if (t->file && !strcmp (t->file, BASILISK "/grid/events.h"))
+      char * events = qcc_path_join (qcc_basilisk_root (), "grid/events.h");
+      if (events && t->file && !strcmp (t->file, events))
 	fprintf (stderr, "%s:%d: %s %p %p\n", t->file, t->line, t->start, n, v);
+      free (events);
     }
 #endif
     ast_terminal ((Ast *)v)->value = ast_terminal (n)->value = v;
@@ -3362,10 +3365,16 @@ int ast_run (AstRoot * root, Ast * n, int verbosity, int maxcalls, void * user_d
   void * prev = stack_set_push (stack, push);
   stack_push (stack, &root);
   if (n) {
-    AstRoot * interpreter = add_external_declarations (root, BASILISK "/ast/interpreter/declarations.h");
-    AstRoot * internal = add_external_declarations (root, BASILISK "/ast/interpreter/internal.h");
+    char * declarations_path = qcc_path_join (qcc_basilisk_root (), "ast/interpreter/declarations.h");
+    char * internal_path = qcc_path_join (qcc_basilisk_root (), "ast/interpreter/internal.h");
+    char * overload_path = qcc_path_join (qcc_basilisk_root (), "ast/interpreter/overload.h");
+    AstRoot * interpreter = add_external_declarations (root, declarations_path);
+    AstRoot * internal = add_external_declarations (root, internal_path);
     run_external_declarations ((Ast *) root, stack);
-    AstRoot * overload = add_external_declarations (root, BASILISK "/ast/interpreter/overload.h");
+    AstRoot * overload = add_external_declarations (root, overload_path);
+    free (declarations_path);
+    free (internal_path);
+    free (overload_path);
     run (n, stack);
     if (after_run)
       after_run (n, stack);

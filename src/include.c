@@ -935,6 +935,7 @@ char *yytext;
   #include <sys/stat.h>
   #include <sys/types.h>
   #include "ast/allocator.h"
+  #include "paths.h"
   
   enum { FUNCTION, TYPEDEF };
 
@@ -971,8 +972,10 @@ char *yytext;
   static FILE * fdepend = NULL, * ftags = NULL, * myout = NULL;
   static char * fname;
   
-  static char * paths[100] = { LIBDIR }, grid[80] = "";
-  static int npath = 1, hasgrid = 0, debug = 0;
+  static char * libdir = NULL;
+
+  static char * paths[100], grid[80] = "";
+  static int npath = 0, hasgrid = 0, debug = 0;
   static int dimension = 0, bghosts = 0, layers = 0, gpu = 0;
   static int incode;    // are we in code (or in a code block)?
   
@@ -1063,9 +1066,9 @@ char *yytext;
 #define space(s) { while (!strchr(" \t\v\n\f", *s)) s++; }
 
   static char * shortpath (char * path) {
-    char * file = strstr (path, LIBDIR);
+    char * file = strstr (path, libdir);
     if (file == path)
-      return file + strlen(LIBDIR) - strlen("src") - 1; // remove root
+      return file + strlen(libdir) - strlen("src") - 1; // remove root
     else
       return path;
   }
@@ -1117,8 +1120,8 @@ char *yytext;
 	fputc ('\n', myout);
     }
   }
-#line 1120 "include.c"
-#line 1121 "include.c"
+#line 1123 "include.c"
+#line 1124 "include.c"
 
 #define INITIAL 0
 
@@ -1344,10 +1347,10 @@ YY_DECL
 		}
 
 	{
-#line 200 "include.lex"
+#line 203 "include.lex"
 
 
-#line 1350 "include.c"
+#line 1353 "include.c"
 
 	while ( /*CONSTCOND*/1 )		/* loops until end-of-file is reached */
 		{
@@ -1423,7 +1426,7 @@ do_action:	/* This label is used only to access EOF actions. */
 case 1:
 /* rule 1 can match eol */
 YY_RULE_SETUP
-#line 202 "include.lex"
+#line 205 "include.lex"
 {
   if (incode) {
     yylineno--;
@@ -1436,7 +1439,7 @@ YY_RULE_SETUP
 case 2:
 /* rule 2 can match eol */
 YY_RULE_SETUP
-#line 211 "include.lex"
+#line 214 "include.lex"
 {
   if (incode) {
     incode = 0;
@@ -1446,21 +1449,21 @@ YY_RULE_SETUP
 	YY_BREAK
 case 3:
 YY_RULE_SETUP
-#line 218 "include.lex"
+#line 221 "include.lex"
 {
   echo(); // quoted character
 }
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
-#line 222 "include.lex"
+#line 225 "include.lex"
 {
   scope++;
 }
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 226 "include.lex"
+#line 229 "include.lex"
 {
   scope--;
   if (scope < 0) {
@@ -1477,7 +1480,7 @@ YY_RULE_SETUP
 case 6:
 /* rule 6 can match eol */
 YY_RULE_SETUP
-#line 239 "include.lex"
+#line 242 "include.lex"
 {
   // include "..."
   if (fdepend && strstr (yytext, "// nodep"))
@@ -1523,7 +1526,7 @@ YY_RULE_SETUP
 case 7:
 /* rule 7 can match eol */
 YY_RULE_SETUP
-#line 281 "include.lex"
+#line 284 "include.lex"
 {
     echo();
     if (grid[0] == '\0' && !hasgrid) {
@@ -1548,7 +1551,7 @@ YY_LINENO_REWIND_TO(yy_cp - 1);
 (yy_c_buf_p) = yy_cp -= 1;
 YY_DO_BEFORE_ACTION; /* set up yytext again */
 YY_RULE_SETUP
-#line 298 "include.lex"
+#line 301 "include.lex"
 {
   char * s = strstr (yytext, "dimension");
   space(s); nonspace(s);
@@ -1562,7 +1565,7 @@ YY_LINENO_REWIND_TO(yy_cp - 1);
 (yy_c_buf_p) = yy_cp -= 1;
 YY_DO_BEFORE_ACTION; /* set up yytext again */
 YY_RULE_SETUP
-#line 304 "include.lex"
+#line 307 "include.lex"
 {
   char * s = strstr (yytext, "BGHOSTS");
   space(s); nonspace(s);
@@ -1576,7 +1579,7 @@ YY_LINENO_REWIND_TO(yy_cp - 1);
 (yy_c_buf_p) = yy_cp -= 1;
 YY_DO_BEFORE_ACTION; /* set up yytext again */
 YY_RULE_SETUP
-#line 310 "include.lex"
+#line 313 "include.lex"
 {
   gpu = 1;
 }
@@ -1588,14 +1591,14 @@ YY_LINENO_REWIND_TO(yy_cp - 1);
 (yy_c_buf_p) = yy_cp -= 1;
 YY_DO_BEFORE_ACTION; /* set up yytext again */
 YY_RULE_SETUP
-#line 314 "include.lex"
+#line 317 "include.lex"
 {
   layers = 1;
 }
 	YY_BREAK
 case 12:
 YY_RULE_SETUP
-#line 318 "include.lex"
+#line 321 "include.lex"
 {
   // function definition
   echo();
@@ -1654,7 +1657,7 @@ YY_RULE_SETUP
 case 13:
 /* rule 13 can match eol */
 YY_RULE_SETUP
-#line 373 "include.lex"
+#line 376 "include.lex"
 {
   echo();
   if (ftags && !keywords_only)
@@ -1664,7 +1667,7 @@ YY_RULE_SETUP
 case 14:
 /* rule 14 can match eol */
 YY_RULE_SETUP
-#line 379 "include.lex"
+#line 382 "include.lex"
 {
   if (intypedef && scope == intypedef - 1) {
     echo();
@@ -1687,7 +1690,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 15:
 YY_RULE_SETUP
-#line 399 "include.lex"
+#line 402 "include.lex"
 {
   // keyword in target
   echo();
@@ -1696,12 +1699,12 @@ YY_RULE_SETUP
 	YY_BREAK
 case 16:
 YY_RULE_SETUP
-#line 405 "include.lex"
+#line 408 "include.lex"
 { echo(); if (incode && comment()) return 1; }
 	YY_BREAK
 case 17:
 YY_RULE_SETUP
-#line 406 "include.lex"
+#line 409 "include.lex"
 {
   if (!incode)
     REJECT;
@@ -1711,27 +1714,27 @@ YY_RULE_SETUP
 	YY_BREAK
 case 18:
 YY_RULE_SETUP
-#line 412 "include.lex"
+#line 415 "include.lex"
 echo();
 	YY_BREAK
 case 19:
 /* rule 19 can match eol */
 YY_RULE_SETUP
-#line 413 "include.lex"
+#line 416 "include.lex"
 echo();
 	YY_BREAK
 case 20:
 /* rule 20 can match eol */
 YY_RULE_SETUP
-#line 414 "include.lex"
+#line 417 "include.lex"
 echo(); /* STRING_LITERAL */
 	YY_BREAK
 case 21:
 YY_RULE_SETUP
-#line 416 "include.lex"
+#line 419 "include.lex"
 ECHO;
 	YY_BREAK
-#line 1734 "include.c"
+#line 1737 "include.c"
 			case YY_STATE_EOF(INITIAL):
 				yyterminate();
 
@@ -2723,7 +2726,7 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 416 "include.lex"
+#line 419 "include.lex"
 
 
 int yyerror (const char * s)
@@ -2892,6 +2895,10 @@ void includes (int argc, char ** argv,
   int i;
   warninclude = 0;
   alloc = new_allocator();
+  if (!libdir) {
+    libdir = (char *) qcc_libdir ();
+    paths[npath++] = libdir;
+  }
   char * basilisk_include_path = getenv ("BASILISK_INCLUDE_PATH");
   if (basilisk_include_path) {
     basilisk_include_path = strdup (basilisk_include_path);
@@ -2989,7 +2996,7 @@ void includes (int argc, char ** argv,
       *dot = '\0';
       fprintf (swigfp, "%%module %s\n", swigname);
       fputs ("%include \"", swigfp);
-      fputs (LIBDIR, swigfp);
+      fputs (libdir, swigfp);
       fputs ("/common.i\"\n", swigfp);
     }
     target = 1;

@@ -270,9 +270,16 @@ Dimension * const dimension_any = (Dimension *) 128;
 
 const char * ast_file_crop (const char * file)
 {
-  int len = strlen (BASILISK);
-  if (strlen (file) > len && !strncmp (file, BASILISK, len))
-    return file + len - 4;
+  const char * root = qcc_basilisk_root ();
+  int len = root ? strlen (root) : 0;
+  if (len && strlen (file) > len && !strncmp (file, root, len)) {
+    const char * base = strrchr (root, '/');
+    base = base ? base + 1 : root;
+    if (!strcmp (base, "src"))
+      return file + len - strlen ("src");
+    const char * rel = file + len;
+    return *rel == '/' ? rel + 1 : rel;
+  }
   return file;
 }
 

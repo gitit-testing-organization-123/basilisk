@@ -5,6 +5,7 @@
   #include <sys/stat.h>
   #include <sys/types.h>
   #include "ast/allocator.h"
+  #include "paths.h"
   
   enum { FUNCTION, TYPEDEF };
 
@@ -41,8 +42,10 @@
   static FILE * fdepend = NULL, * ftags = NULL, * myout = NULL;
   static char * fname;
   
-  static char * paths[100] = { LIBDIR }, grid[80] = "";
-  static int npath = 1, hasgrid = 0, debug = 0;
+  static char * libdir = NULL;
+
+  static char * paths[100], grid[80] = "";
+  static int npath = 0, hasgrid = 0, debug = 0;
   static int dimension = 0, bghosts = 0, layers = 0, gpu = 0;
   static int incode;    // are we in code (or in a code block)?
   
@@ -133,9 +136,9 @@
 #define space(s) { while (!strchr(" \t\v\n\f", *s)) s++; }
 
   static char * shortpath (char * path) {
-    char * file = strstr (path, LIBDIR);
+    char * file = strstr (path, libdir);
     if (file == path)
-      return file + strlen(LIBDIR) - strlen("src") - 1; // remove root
+      return file + strlen(libdir) - strlen("src") - 1; // remove root
     else
       return path;
   }
@@ -581,6 +584,10 @@ void includes (int argc, char ** argv,
   int i;
   warninclude = 0;
   alloc = new_allocator();
+  if (!libdir) {
+    libdir = (char *) qcc_libdir ();
+    paths[npath++] = libdir;
+  }
   char * basilisk_include_path = getenv ("BASILISK_INCLUDE_PATH");
   if (basilisk_include_path) {
     basilisk_include_path = strdup (basilisk_include_path);
@@ -678,7 +685,7 @@ void includes (int argc, char ** argv,
       *dot = '\0';
       fprintf (swigfp, "%%module %s\n", swigname);
       fputs ("%include \"", swigfp);
-      fputs (LIBDIR, swigfp);
+      fputs (libdir, swigfp);
       fputs ("/common.i\"\n", swigfp);
     }
     target = 1;
