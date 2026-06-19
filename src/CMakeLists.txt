@@ -85,60 +85,6 @@ message(STATUS "qcc using ${BASILISK}")
 
 target_link_libraries(qcc PRIVATE m ${CMAKE_DL_LIBS})
 
-# --- qcc-toolchain --------------------------------------------------
-
-add_executable(qcc-toolchain
-  qcc.c
-  paths.c
-  include.c
-  postproc.c
-  ast/ast.c
-  ast/tokens.c
-  ast/basilisk.c
-  ast/translate.c
-  ast/allocator.c
-  ast/faststack.c
-  ast/stencil.c
-  ast/types.c
-  ast/references.c
-  ast/kernels.c
-  ast/check.c
-  ast/interpreter/interpreter.c
-  "${YACC_OUT}"   # keep listed so the file-level graph is correct
-)
-
-# Make sure qcc waits for grammar.h generation
-add_dependencies(qcc-toolchain qcc-grammar)
-
-# Tell CMake this header is generated (helps IDEs and some generators)
-set_source_files_properties("${YACC_OUT}" PROPERTIES GENERATED TRUE)
-
-add_executable(basilisk::qcc-toolchain ALIAS qcc-toolchain)
-
-target_include_directories(qcc-toolchain PRIVATE
-  "${CMAKE_CURRENT_SOURCE_DIR}"
-  "${CMAKE_CURRENT_SOURCE_DIR}/ast"
-  "${CMAKE_CURRENT_BINARY_DIR}/ast"   # where grammar.h is generated
-  "${CMAKE_CURRENT_SOURCE_DIR}/ast/interpreter"
-)
-
-target_compile_definitions(qcc-toolchain PRIVATE
-  LIBDIR=\"${LIBDIR_SOURCE}\"
-  CC99=\"${CC99}\"
-  CPP99=\"${CPP99}\"
-  CADNACC=\"${CADNACC}\"
-  BASILISK=\"${BASILISK_SOURCE}\"
-)
-
-target_compile_options(qcc-toolchain PRIVATE
-  $<$<COMPILE_LANGUAGE:C>:-O0>
-  $<$<COMPILE_LANGUAGE:CXX>:-O0>
-)
-
-message(STATUS "qcc-toolchain using ${BASILISK_SOURCE}")
-
-target_link_libraries(qcc-toolchain PRIVATE m ${CMAKE_DL_LIBS})
-
 # --- gl -------------------------------------------------------------------
 
 add_subdirectory(gl)
@@ -153,11 +99,11 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND} -E make_directory "${BVIEW2D_GEN_DIR}"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
           "${CMAKE_CURRENT_SOURCE_DIR}/bview.c" "${BVIEW2D_GEN_DIR}/bview.c"
-  COMMAND $<TARGET_FILE:qcc-toolchain>
+  COMMAND $<TARGET_FILE:qcc>
     "bview.c"
     -I"${CMAKE_SOURCE_DIR}"
     -source
-  DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/bview.c" qcc-toolchain
+  DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/bview.c" qcc
   WORKING_DIRECTORY "${BVIEW2D_GEN_DIR}"
 )
 
@@ -190,12 +136,12 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND} -E make_directory "${BVIEW3D_GEN_DIR}"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
           "${CMAKE_CURRENT_SOURCE_DIR}/bview.c" "${BVIEW3D_GEN_DIR}/bview.c"
-  COMMAND $<TARGET_FILE:qcc-toolchain>
+  COMMAND $<TARGET_FILE:qcc>
     "bview.c"
     -I"${CMAKE_SOURCE_DIR}"
     -grid=octree
     -source
-  DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/bview.c" qcc-toolchain
+  DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/bview.c" qcc
   WORKING_DIRECTORY "${BVIEW3D_GEN_DIR}"
 )
 
@@ -228,12 +174,12 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND} -E make_directory "${BVIEW2DM_GEN_DIR}"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
           "${CMAKE_CURRENT_SOURCE_DIR}/bview.c" "${BVIEW2DM_GEN_DIR}/bview.c"
-  COMMAND $<TARGET_FILE:qcc-toolchain>
+  COMMAND $<TARGET_FILE:qcc>
     "bview.c"
     -I"${CMAKE_SOURCE_DIR}"
     -grid=multigrid
     -source
-  DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/bview.c" qcc-toolchain
+  DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/bview.c" qcc
   WORKING_DIRECTORY "${BVIEW2DM_GEN_DIR}"
 )
 
