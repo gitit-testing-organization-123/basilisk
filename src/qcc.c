@@ -52,6 +52,7 @@ All other options will be passed directly to the C compiler. */
 #include <sys/wait.h>
 #include <assert.h>
 #include "ast/ast.h"
+#include "paths.h"
 
 int dimension = 2, bghosts = 0, layers = 0;
   
@@ -135,6 +136,8 @@ AstRoot * compdir (FILE * fin, FILE * fout, FILE * swigfp,
 
 int main (int argc, char ** argv)
 {
+  qcc_paths_init (argc > 0 ? argv[0] : NULL);
+
   char * cc = getenv ("CC99"), command[1000], command1[1000] = "";
   if (cc == NULL)
     strcpy (command, CC99);
@@ -440,14 +443,13 @@ int main (int argc, char ** argv)
 	for (i = 0; i < strlen ("-pedantic"); i++)
 	  pedantic[i] = ' ';
       strcat (preproc, " -I");
-      strcat (preproc, BASILISK);
-      strcat (preproc, "/ast/std");
+      strcat (preproc, qcc_ast_std_dir ());
       strcat (preproc, " -I. -I");
-      strcat (preproc, LIBDIR);
+      strcat (preproc, qcc_libdir ());
       strcat (preproc, " ");
       if (events) {
 	strcat (preproc, " -DDEBUG_EVENTS=1 -DBASILISK=\"\\\"");
-	strcat (preproc, BASILISK);
+	strcat (preproc, qcc_basilisk_root ());
 	strcat (preproc, "\\\"\" ");
       }
       if (nolineno)
@@ -498,7 +500,7 @@ int main (int argc, char ** argv)
       rename (src, dst);
 
       strcat (command, " -I");
-      strcat (command, LIBDIR);
+      strcat (command, qcc_libdir ());
       strcat (command, " ");
       strcat (command, dir);
       strcat (command, "/");

@@ -40,6 +40,7 @@ add_custom_target(qcc-grammar-utility DEPENDS "${YACC_OUT}")
 
 add_executable(qcc
   qcc.c
+  paths.c
   include.c
   postproc.c
   ast/ast.c
@@ -82,12 +83,13 @@ target_compile_definitions(qcc PRIVATE
 
 message(STATUS "qcc using ${BASILISK}")
 
-target_link_libraries(qcc PRIVATE m)
+target_link_libraries(qcc PRIVATE m ${CMAKE_DL_LIBS})
 
 # --- qcc-toolchain --------------------------------------------------
 
 add_executable(qcc-toolchain
   qcc.c
+  paths.c
   include.c
   postproc.c
   ast/ast.c
@@ -135,7 +137,7 @@ target_compile_options(qcc-toolchain PRIVATE
 
 message(STATUS "qcc-toolchain using ${BASILISK_SOURCE}")
 
-target_link_libraries(qcc-toolchain PRIVATE m)
+target_link_libraries(qcc-toolchain PRIVATE m ${CMAKE_DL_LIBS})
 
 # --- gl -------------------------------------------------------------------
 

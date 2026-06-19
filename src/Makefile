@@ -25,13 +25,13 @@ $(SUBDIRS):
 literatec:
 	cd darcsit && $(MAKE) && cd cgi-bin && $(MAKE)
 
-qcc: qcc.c include.o postproc.o ast/libast.a config ast/ast.h
+qcc: qcc.c paths.c include.o postproc.o ast/libast.a config ast/ast.h
 	$(CC) $(CFLAGS) -DLIBDIR=\"`pwd`\" \
 		-DCC99="\"$(CC99)\"" \
 		-DCPP99="\"$(CPP99)\"" \
 		-DCADNACC="\"$(CADNACC)\"" \
 		-DBASILISK="\"$(BASILISK)\"" \
-		qcc.c include.o postproc.o -o qcc -Last -last -lm
+		qcc.c paths.c include.o postproc.o -o qcc -Last -last -lm -ldl
 
 include.o: include.c
 	$(CC) $(CFLAGS) -DLIBDIR=\"`pwd`\" -c include.c

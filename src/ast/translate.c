@@ -16,6 +16,7 @@ respecting the C99 grammar.
 #include "symbols.h"
 #include "einstein_sum.h"
 #include "optional.h"
+#include "paths.h"
 
 /**
 By default grammar checks are turned off. */
@@ -5034,7 +5035,9 @@ AstRoot * endfor (FILE * fin, FILE * fout,
   }
   buffer[len++] = '\0';
 
-  FILE * fp = fopen (BASILISK "/ast/defaults.h", "r");
+  char * path = qcc_path_join (qcc_basilisk_root (), "ast/defaults.h");
+  FILE * fp = fopen (path, "r");
+  free (path);
   assert (fp);
   AstRoot * d = ast_parse_file (fp, NULL);
   fclose (fp);
@@ -5060,7 +5063,9 @@ AstRoot * endfor (FILE * fin, FILE * fout,
   data.swigname = swigfp ? swigname : NULL;
   data.functions = stack_new (sizeof (Ast *));
   
-  fp = fopen (BASILISK "/ast/init_solver.h", "r");
+  path = qcc_path_join (qcc_basilisk_root (), "ast/init_solver.h");
+  fp = fopen (path, "r");
+  free (path);
   AstRoot * init = ast_parse_file (fp, root);
   fclose (fp);
   data.init_solver = ast_find ((Ast *) init, sym_function_definition);
