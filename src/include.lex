@@ -5,6 +5,7 @@
   #include <sys/stat.h>
   #include <sys/types.h>
   #include "ast/allocator.h"
+  #include "include.h"
   #include "paths.h"
   
   enum { FUNCTION, TYPEDEF };
@@ -46,7 +47,7 @@
 
   static char * paths[100], grid[80] = "";
   static int npath = 0, hasgrid = 0, debug = 0;
-  static int dimension = 0, bghosts = 0, layers = 0, gpu = 0;
+  static int dimension = 0, bghosts = 0, layers = 0, gpu = 0, cuda = 0, fp32 = 0;
   static int incode;    // are we in code (or in a code block)?
   
   static char * strip_path (char * s) {
@@ -314,8 +315,16 @@ FDECL     {ID}+{SP}*\(
   gpu = 1;
 }
 
+^{SP}*#{SP}*define{SP}+_CUDA{WS}+1{SP}*$ {
+  cuda = 1;
+}
+
 ^{SP}*#{SP}*define{SP}+LAYERS{WS}+1{SP}*$ {
   layers = 1;
+}
+
+^{SP}*#{SP}*define{SP}+SINGLE_PRECISION{WS}+1{SP}*$ {
+  fp32 = 1;
 }
 
 ^{SP}*{ID}+{SP}*\**({SP}+{ID}+{SP}*\**)*{SP}+{ID}+{SP}*\( {
@@ -485,7 +494,7 @@ static int is_code (const char * file)
   int len = strlen (file);
   if (len < 2)
     return 0;
-  char * s = file + len - 2;
+  const char * s = file + len - 2;
   return !strcmp (s, ".c") || !strcmp (s, ".h");
 }
 
@@ -576,7 +585,7 @@ static void prepend_path (char * path)
 
 void includes (int argc, char ** argv,
 	       char ** grid1, int * default_grid,
-	       int * dim, int * bg, int * lyrs, int * gpus,
+	       int * dim, int * bg, int * lyrs, int * gpus, int * cudas, int * fp32s,
 	       const char * dir)
 {
   int depend = 0, tags = 0, swig = 0;
@@ -740,6 +749,8 @@ void includes (int argc, char ** argv,
   *bg = bghosts;
   *lyrs = layers;
   *gpus = gpu;
+  *cudas = cuda;
+  *fp32s = fp32;
   free (basilisk_include_path);
   free_allocator (alloc);
 }

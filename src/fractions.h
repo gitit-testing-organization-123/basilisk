@@ -24,9 +24,9 @@ coord mycs (Point point, scalar c) {
 By default the interface normal is computed using the MYC
 approximation. This can be overloaded by redefining this macro. */
 
-#ifndef interface_normal
-# define interface_normal(point, c) mycs (point, c)
-#endif
+auto macro coord interface_normal (Point p, scalar c) {
+  return mycs (p, c);
+}
 
 /**
 ## Coarsening and refinement of a volume fraction field 
@@ -188,7 +188,7 @@ void fractions (vertex scalar Phi, scalar c,
   the edge intersection coordinates. This can probably be improved. */
   
   foreach_dimension()
-    p.x.dirty = false;
+    p.x.stencil.bc |= s_centered|s_face;
   
   scalar s_x = as.x, s_y = as.y, s_z = as.z;
   foreach_face(z,x,y)
