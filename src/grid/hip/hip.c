@@ -20,27 +20,9 @@ hipify-perl -hip-kernel-execution-syntax ../cuda/cuda.c | \
   sed -e 's/CUDA_/HIP_/g' -e 's/NVRTC_/HIPRTC_/g' > hip.c
 ~~~
 
-Note that this was only tested using the HIP-on-CUDA implementation
-i.e. HIP is then just a translation layer which relies on the CUDA
-implementation. So the CUDA libraries need to be installed using:
-
-~~~bash
-apt install nvidia-driver nvidia-cuda-dev
-~~~
-
-The results should then be identical to those of the CUDA backend
-(including the poor performances).
-
-Adapting this to a pure AMD/ROCm implementation will involve changing
-the compilation of the `libhip.a` library (see the [Makefile]()), and
-changing the `autolink` pragmas in [multigrid.h]() and
-[cartesian.h]().
-
-## TODO
-
-* Since HIP is compatible with CUDA, this backend should in the end
-  completely replace the [CUDA backend](../cuda/cuda.c).
-*/
+In principle this should work on both NVidia and AMD cards. Note
+however that Basilisk GPU development is done on Nvidia cards so that
+the AMD version is not as well tested. */
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -48,6 +30,8 @@ changing the `autolink` pragmas in [multigrid.h]() and
 #include <string.h>
 #include <math.h>
 #include <assert.h>
+#include <sys/stat.h>
+#include <errno.h>
 #include "a32.h"
 
 typedef struct { double x, y, z; } coord;
@@ -185,7 +169,9 @@ void architecture (char * arch)
 #endif
 }
 
-Shader * load_normal_shader (const char * fs, const char * func, const char * file, int line)
+static char * compile_ptx (const char * fs, const char * arch,
+                           const char * func, const char * file, int line,
+                           size_t * ptxSize)
 {
   //  fputs (fs, stderr);
   hiprtcProgram prog;
@@ -195,8 +181,6 @@ Shader * load_normal_shader (const char * fs, const char * func, const char * fi
                                     NULL,
                                     NULL
                                     ));
-  char arch[64] = "";
-  architecture (arch);
 #ifdef __HIP_PLATFORM_AMD__
   // AMD ROCm - use HIP-compatible compiler options
   const char *opts[] = {
@@ -239,9 +223,8 @@ Shader * load_normal_shader (const char * fs, const char * func, const char * fi
   // Get Code (PTX for NVIDIA, or HSACO/GCN for AMD)
   // ------------------------------------------------------------
 
-  size_t ptxSize;
-  HIPRTC_CHECK (hiprtcGetCodeSize (prog, &ptxSize));
-  char ptx[ptxSize];
+  HIPRTC_CHECK (hiprtcGetCodeSize (prog, ptxSize));
+  char * ptx = malloc (*ptxSize);
   HIPRTC_CHECK (hiprtcGetCode (prog, ptx));
   HIPRTC_CHECK (hiprtcDestroyProgram (&prog));
 
@@ -257,12 +240,80 @@ Shader * load_normal_shader (const char * fs, const char * func, const char * fi
 #endif // SINGLE_PRECISION
 #endif
 
+  return ptx;
+}
+
+static
+int create_tmpdir (const char * path)
+{
+  struct stat st;
+  if (stat (path, &st) == 0) {
+    if (S_ISDIR (st.st_mode))
+      return 0; // Directory exists
+    else {
+      errno = ENOTDIR;
+      return -1; // Path exists but is not a directory
+    }
+  }
+  // Directory does not exist, try to create it
+  if (mkdir (path, 0755) == 0)
+    return 0; // Successfully created
+  return -1; // Failed to create
+}
+
+Shader * load_normal_shader (const char * fs, const char * func, const char * file, int line)
+{
+  char arch[64] = "";
+  architecture (arch);
+
+  // ---------------------------------------------------------------
+  // Try to read from a compilation cache (by default in /tmp/buda/)
+  // ---------------------------------------------------------------
+  
+  Adler32Hash hasha;
+  a32_hash_init (&hasha);
+  a32_hash_add (&hasha, fs, strlen (fs));
+  a32_hash_add (&hasha, arch, strlen (arch));
+  uint32_t hash = a32_hash (&hasha);
+
+  const char * tmpdir = getenv ("TMPDIR"), * tmp = tmpdir ? tmpdir : "/tmp";
+  char cache[strlen(tmp) + strlen("/buda/ffffffff") + 1];
+  sprintf (cache, "%s/buda", tmp);
+  if (create_tmpdir (cache)) {
+    fprintf (stderr, "%s:%d: cannot create temporary directory '%s'\n", \
+             __FILE__, __LINE__, cache);
+    perror ("");
+    exit (1);
+  }
+  sprintf (cache, "%s/buda/%x", tmp, hash);
+  char * ptx;
+  struct stat st;
+  if (stat (cache, &st) == 0) { // found in cache
+    FILE * fp = fopen (cache, "r");
+    assert (fp);
+    ptx = malloc (st.st_size);
+    assert (fread (ptx, 1, st.st_size, fp) == st.st_size);
+    fclose (fp);
+  }
+  else { // not found in cache
+    size_t size;
+    ptx = compile_ptx (fs, arch, func, file, line, &size);
+    if (!ptx)
+      return NULL;
+    FILE * fp = fopen (cache, "w");
+    if (fp) {
+      assert (fwrite (ptx, 1, size, fp) == size);
+      fclose (fp);
+    }
+  }
+
   // ------------------------------------------------------------
   // Load binary module
   // ------------------------------------------------------------
 
   Shader * shader = calloc (1, sizeof (Shader));
   HIP_CHECK (hipModuleLoadData (&shader->module, ptx));
+  free (ptx);
   HIP_CHECK (hipModuleGetFunction (&shader->kernel, shader->module, func));
   return shader;
 }
