@@ -2,6 +2,16 @@
 
 include(CMakeFindDependencyMacro)
 find_dependency(Threads)
+if(@BASILISK_USE_GLSL@)
+  find_dependency(glfw3)
+endif()
+if(@BASILISK_USE_CUDA@)
+  find_dependency(CUDAToolkit)
+endif()
+if(@BASILISK_USE_HIP@)
+  find_dependency(hip CONFIG)
+  find_dependency(hiprtc CONFIG)
+endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/basiliskTargets.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/basilisk_add_executable.cmake")

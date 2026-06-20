@@ -73,23 +73,26 @@ target_include_directories(qcc PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/ast/interpreter"
 )
 
-target_compile_definitions(qcc PRIVATE
-  LIBDIR=\"${LIBDIR}\"
-  CC99=\"${CC99}\"
-  CPP99=\"${CPP99}\"
-  CADNACC=\"${CADNACC}\"
-  BASILISK=\"${BASILISK}\"
-)
+target_compile_definitions(qcc PRIVATE LIBDIR=\"${LIBDIR}\" LINKDIR=\"${CMAKE_INSTALL_FULL_LIBDIR}\" CC99=\"${CC99}\" CPP99=\"${CPP99}\" CADNACC=\"${CADNACC}\" BASILISK=\"${BASILISK}\")
 
 message(STATUS "qcc using ${BASILISK}")
 
 target_link_libraries(qcc PRIVATE m ${CMAKE_DL_LIBS})
 
-# --- gl -------------------------------------------------------------------
+# --- gl ----------------------------------------------------------------------
 
 add_subdirectory(gl)
 
-# --- bview2D --------------------------------------------------
+# --- grid/gpu ----------------------------------------------------------------
+
+add_subdirectory(grid)
+
+# --- optional libraries -------------------------------------------------------
+
+add_subdirectory(kdt)
+add_subdirectory(ppr)
+
+# --- bview2D -----------------------------------------------------------------
 
 set(BVIEW2D_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/bview2D_gen")
 file(MAKE_DIRECTORY "${BVIEW2D_GEN_DIR}")
@@ -99,9 +102,13 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND} -E make_directory "${BVIEW2D_GEN_DIR}"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
           "${CMAKE_CURRENT_SOURCE_DIR}/bview.c" "${BVIEW2D_GEN_DIR}/bview.c"
-  COMMAND $<TARGET_FILE:qcc>
-    "bview.c"
+  COMMAND "${CMAKE_COMMAND}" -E env
+    "BASILISK=${CMAKE_CURRENT_SOURCE_DIR}"
+    "BASILISK_LIBDIR=${CMAKE_CURRENT_SOURCE_DIR}"
+    $<TARGET_FILE:qcc>
+    -I"${CMAKE_CURRENT_SOURCE_DIR}"
     -I"${CMAKE_SOURCE_DIR}"
+    "bview.c"
     -source
   DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/bview.c" qcc
   WORKING_DIRECTORY "${BVIEW2D_GEN_DIR}"
@@ -120,7 +127,7 @@ target_include_directories(bview2D PRIVATE
 target_link_libraries(bview2D PRIVATE
   fb_tiny
   glutils
-  wsserver
+  ws
   m
 )
 
@@ -136,9 +143,13 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND} -E make_directory "${BVIEW3D_GEN_DIR}"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
           "${CMAKE_CURRENT_SOURCE_DIR}/bview.c" "${BVIEW3D_GEN_DIR}/bview.c"
-  COMMAND $<TARGET_FILE:qcc>
-    "bview.c"
+  COMMAND "${CMAKE_COMMAND}" -E env
+    "BASILISK=${CMAKE_CURRENT_SOURCE_DIR}"
+    "BASILISK_LIBDIR=${CMAKE_CURRENT_SOURCE_DIR}"
+    $<TARGET_FILE:qcc>
+    -I"${CMAKE_CURRENT_SOURCE_DIR}"
     -I"${CMAKE_SOURCE_DIR}"
+    "bview.c"
     -grid=octree
     -source
   DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/bview.c" qcc
@@ -158,7 +169,7 @@ target_include_directories(bview3D PRIVATE
 target_link_libraries(bview3D PRIVATE
   fb_tiny
   glutils
-  wsserver
+  ws
   m
 )
 
@@ -174,9 +185,13 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND} -E make_directory "${BVIEW2DM_GEN_DIR}"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
           "${CMAKE_CURRENT_SOURCE_DIR}/bview.c" "${BVIEW2DM_GEN_DIR}/bview.c"
-  COMMAND $<TARGET_FILE:qcc>
-    "bview.c"
+  COMMAND "${CMAKE_COMMAND}" -E env
+    "BASILISK=${CMAKE_CURRENT_SOURCE_DIR}"
+    "BASILISK_LIBDIR=${CMAKE_CURRENT_SOURCE_DIR}"
+    $<TARGET_FILE:qcc>
+    -I"${CMAKE_CURRENT_SOURCE_DIR}"
     -I"${CMAKE_SOURCE_DIR}"
+    "bview.c"
     -grid=multigrid
     -source
   DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/bview.c" qcc
@@ -196,7 +211,7 @@ target_include_directories(bview2Dm PRIVATE
 target_link_libraries(bview2Dm PRIVATE
   fb_tiny
   glutils
-  wsserver
+  ws
   m
 )
 

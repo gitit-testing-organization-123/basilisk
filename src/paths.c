@@ -20,9 +20,14 @@
 #define LIBDIR ""
 #endif
 
+#ifndef LINKDIR
+#define LINKDIR ""
+#endif
+
 static char * executable_path = NULL;
 static char * basilisk_root = NULL;
 static char * libdir = NULL;
+static char * linkdir = NULL;
 static char * ast_std_dir = NULL;
 
 static char * xstrdup (const char * s)
@@ -241,9 +246,55 @@ static char * find_libdir (void)
   return xstrdup (LIBDIR);
 }
 
+static char * find_linkdir_near_executable (const char * exe)
+{
+  char * selfdir = dirname_dup (exe);
+  if (!selfdir)
+    return NULL;
+
+  const char * suffixes[] = {
+    "../lib",                  /* installed: prefix/bin/qcc */
+    "../lib64",
+    "../../lib",
+    "../../lib64",
+    NULL
+  };
+
+  for (int i = 0; suffixes[i]; i++) {
+    char * candidate = qcc_path_join (selfdir, suffixes[i]);
+    char * found = canonical_dir_if_exists (candidate);
+    free (candidate);
+    if (found) {
+      free (selfdir);
+      return found;
+    }
+  }
+
+  free (selfdir);
+  return NULL;
+}
+
+static char * find_linkdir (const char * exe)
+{
+  const char * env = getenv ("BASILISK_LINKDIR");
+  char * dir = canonical_dir_if_exists (env);
+  if (dir)
+    return dir;
+
+  dir = find_linkdir_near_executable (exe);
+  if (dir)
+    return dir;
+
+  dir = canonical_dir_if_exists (LINKDIR);
+  if (dir)
+    return dir;
+
+  return xstrdup (LINKDIR);
+}
+
 void qcc_paths_init (const char * argv0)
 {
-  if (basilisk_root && libdir && ast_std_dir)
+  if (basilisk_root && libdir && linkdir && ast_std_dir)
     return;
 
   if (!executable_path)
@@ -254,6 +305,9 @@ void qcc_paths_init (const char * argv0)
 
   if (!libdir)
     libdir = find_libdir ();
+
+  if (!linkdir)
+    linkdir = find_linkdir (executable_path);
 
   if (!ast_std_dir)
     ast_std_dir = qcc_path_join (basilisk_root, "ast/std");
@@ -275,6 +329,12 @@ const char * qcc_libdir (void)
 {
   qcc_paths_init (NULL);
   return libdir;
+}
+
+const char * qcc_linkdir (void)
+{
+  qcc_paths_init (NULL);
+  return linkdir;
 }
 
 const char * qcc_ast_std_dir (void)

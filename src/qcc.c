@@ -124,8 +124,12 @@ AstRoot * compdir (FILE * fin, FILE * fout, FILE * swigfp,
   fclose (fout1);
   fflush (fout);
 
-  if (source && autolinks && autolink)
+  if (source && autolinks && autolink) {
+    const char * linkdir = qcc_linkdir ();
+    if (linkdir && *linkdir)
+      printf ("-L%s", linkdir);
     printf ("%s\n", autolink);
+  }
 
   return ast;
 }
@@ -513,8 +517,14 @@ int main (int argc, char ** argv)
   /* compilation */
   status = 0;
   if (!dep && !tags && !source) {
-    if (autolinks && autolink)
+    if (autolinks && autolink) {
+      const char * linkdir = qcc_linkdir ();
+      if (linkdir && *linkdir) {
+	strcat (command, " -L");
+	strcat (command, linkdir);
+      }
       strcat (command, autolink);
+    }
     if (debug)
       fprintf (stderr, "command: %s\n", command);
     status = system (command);

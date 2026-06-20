@@ -14,7 +14,36 @@
       "binaryDir": "${sourceDir}/build/release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_INSTALL_PREFIX": "${sourceDir}/install/release"
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/install/release",
+        "BASILISK_USE_KDT": "On",
+        "BASILISK_USE_PPR": "On"
+      }
+    },
+    {
+      "name": "GLSL",
+      "displayName": "GLSL",
+      "description": "Release build with system default generator.",
+      "inherits": "Default",
+      "cacheVariables": {
+        "BASILISK_USE_GLSL": "On"
+      }
+    },
+    {
+      "name": "CUDA",
+      "displayName": "CUDA",
+      "description": "Release build with system default generator.",
+      "inherits": "Default",
+      "cacheVariables": {
+        "BASILISK_USE_CUDA": "On"
+      }
+    },
+    {
+      "name": "HIP",
+      "displayName": "HIP",
+      "description": "Release build with system default generator.",
+      "inherits": "Default",
+      "cacheVariables": {
+        "BASILISK_USE_HIP": "On"
       }
     },
     {

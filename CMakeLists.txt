@@ -4,6 +4,13 @@ project(basilisk
   LANGUAGES C CXX
 )
 
+option(BASILISK_USE_PPR "Build the PPR remapping library" OFF)
+option(BASILISK_USE_KDT "Build the KDT terrain library and tools" OFF)
+
+if(BASILISK_USE_PPR)
+  enable_language(Fortran)
+endif()
+
 # Project settings
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -104,11 +111,6 @@ set(BASILISK "${CMAKE_INSTALL_FULL_INCLUDEDIR}/basilisk/"
 set(LIBDIR "${CMAKE_INSTALL_FULL_INCLUDEDIR}/basilisk/"
     CACHE PATH "Root for Basilisk libraries used by qcc")
 
-set(BASILISK_SOURCE "${PROJECT_SOURCE_DIR}/src/"
-    CACHE PATH "Root for Basilisk includes used by qcc-toolchain")
-set(LIBDIR_SOURCE "${PROJECT_SOURCE_DIR}/src/"
-    CACHE PATH "Root for Basilisk libraries used by qcc-toolchain")
-
 mark_as_advanced(BASILISK LIBDIR BASILISK_SOURCE LIBDIR_SOURCE)
 
 #
@@ -135,11 +137,22 @@ install(TARGETS
   fb_tiny
   glutils
   tinyrenderer
-  wsserver
+  ws
   EXPORT basiliskTargets
   RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+)
+
+set(basilisk_PPM_CONVERTER_PROGRAMS
+  "${PROJECT_SOURCE_DIR}/src/ppm2gif"
+  "${PROJECT_SOURCE_DIR}/src/ppm2mp4"
+  "${PROJECT_SOURCE_DIR}/src/ppm2mpeg"
+  "${PROJECT_SOURCE_DIR}/src/ppm2ogv"
+)
+
+install(PROGRAMS ${basilisk_PPM_CONVERTER_PROGRAMS}
+  DESTINATION "${CMAKE_INSTALL_BINDIR}"
 )
 
 # --- Install headers / sources needed as includes --------------------------------
