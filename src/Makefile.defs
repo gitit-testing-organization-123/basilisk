@@ -39,19 +39,19 @@ clean:
 %.3D.tst: CFLAGS += -grid=octree
 
 %.gpu.c: %.c $(BASILISK)/grid/gpu/liberrors.a $(BASILISK)/grid/gpu/libgpu.a
-	ln -s -f $< $@
+	rm -f $@ && cp -f $< $@
 %.gpu.s:   CFLAGS += -grid=gpu/multigrid
 %.gpu.s.d: CFLAGS += -grid=gpu/multigrid
 %.gpu.tst: CFLAGS += -grid=gpu/multigrid
 
 %.cuda.c: %.c $(BASILISK)/grid/gpu/liberrors.a $(BASILISK)/grid/cuda/libbuda.a
-	ln -s -f $< $@
+	rm -f $@ && cp -f $< $@
 %.cuda.s:   CFLAGS += -grid=cuda/multigrid
 %.cuda.s.d: CFLAGS += -grid=cuda/multigrid
 %.cuda.tst: CFLAGS += -grid=cuda/multigrid
 
 %.hip.c: %.c $(BASILISK)/grid/gpu/liberrors.a $(BASILISK)/grid/hip/libhip.a
-	ln -s -f $< $@
+	rm -f $@ && cp -f $< $@
 %.hip.s:   CFLAGS += -grid=hip/multigrid
 %.hip.s.d: CFLAGS += -grid=hip/multigrid
 %.hip.tst: CFLAGS += -grid=hip/multigrid
