@@ -103,7 +103,9 @@ enum typedef_kind_t {
 #include <hip/hiprtc.h>
 
 static hipDeviceptr_t ssbo = 0;
+#ifndef __HIP_PLATFORM_AMD__
 static hipDevice_t dev = 0;
+#endif
 static hipCtx_t ctx = 0;
 static hipStream_t stream = 0;
 
@@ -143,11 +145,13 @@ struct _Shader {
   hipFunction_t kernel;
 };
 
-static void * memcpycheck (hipDeviceptr_t location, void * pointer, void * last, size_t size)
+static void * memcpycheck (hipDeviceptr_t location, void * pointer, void * last,
+                           size_t size)
 {
   if (last && !memcmp (pointer, last, size))
     return last;
-  HIP_CHECK (hipMemcpyHtoDAsync (location, pointer, size, stream));
+  HIP_CHECK (hipMemcpyAsync ((void *)location, pointer, size,
+                             hipMemcpyHostToDevice, stream));
   if (!last) last = malloc (size);
   return memcpy (last, pointer, size);
 }
@@ -163,6 +167,13 @@ void free_shader (Shader * s)
 static
 void architecture (char * arch)
 {
+#ifdef __HIP_PLATFORM_AMD__
+  // For AMD GPUs, use gcnArchName from device properties (e.g., gfx906, gfx90a, gfx1030)
+  hipDeviceProp_t props;
+  HIP_CHECK (hipGetDeviceProperties(&props, 0));
+  sprintf (arch, "--offload-arch=%s", props.gcnArchName);
+#else
+  // For NVIDIA GPUs via HIP-on-CUDA, use sm_ architecture
   int major, minor;
   hipDevice_t cuDevice;
   HIP_CHECK (hipDeviceGet(&cuDevice, 0));
@@ -171,7 +182,7 @@ void architecture (char * arch)
   HIP_CHECK (hipDeviceGetAttribute (&minor, hipDeviceAttributeComputeCapabilityMinor,
                                     cuDevice));
   sprintf (arch, "--gpu-architecture=sm_%d%d", major, minor);
-  // fixme: not sure whether this should be compute_%d%d or sm_%d%d ??
+#endif
 }
 
 Shader * load_normal_shader (const char * fs, const char * func, const char * file, int line)
@@ -184,8 +195,17 @@ Shader * load_normal_shader (const char * fs, const char * func, const char * fi
                                     NULL,
                                     NULL
                                     ));
-  char arch[] = "--gpu-architecture=compute_????";
+  char arch[64] = "";
   architecture (arch);
+#ifdef __HIP_PLATFORM_AMD__
+  // AMD ROCm - use HIP-compatible compiler options
+  const char *opts[] = {
+    "--std=c++14",
+    arch,
+    "-ffast-math",
+  };
+#else
+  // NVIDIA via HIP-on-CUDA - use NVRTC-compatible options
   const char *opts[] = {
     "--std=c++11",
     arch,
@@ -196,6 +216,7 @@ Shader * load_normal_shader (const char * fs, const char * func, const char * fi
     "--restrict",
     "-use_fast_math",
   };
+#endif
 
   hiprtcResult compile_res = hiprtcCompileProgram (prog, sizeof(opts)/sizeof(char *), opts);
 
@@ -215,7 +236,7 @@ Shader * load_normal_shader (const char * fs, const char * func, const char * fi
   }
 
   // ------------------------------------------------------------
-  // Get PTX
+  // Get Code (PTX for NVIDIA, or HSACO/GCN for AMD)
   // ------------------------------------------------------------
 
   size_t ptxSize;
@@ -224,8 +245,20 @@ Shader * load_normal_shader (const char * fs, const char * func, const char * fi
   HIPRTC_CHECK (hiprtcGetCode (prog, ptx));
   HIPRTC_CHECK (hiprtcDestroyProgram (&prog));
 
+#ifdef __HIP_PLATFORM_AMD__
+  // For AMD GPUs: code is HSACO binary, not PTX
+  // No FP64 check needed here as it's platform-dependent
+#else
+  // For NVIDIA GPUs via HIP: verify single precision mode
+#if SINGLE_PRECISION
+  if (strstr (ptx, ".f64"))
+    fprintf (stderr, "%s:%d: warning: HIP: found FP64 assembly in single precision mode\n",
+             file, line);
+#endif // SINGLE_PRECISION
+#endif
+
   // ------------------------------------------------------------
-  // Load PTX module
+  // Load binary module
   // ------------------------------------------------------------
 
   Shader * shader = calloc (1, sizeof (Shader));
@@ -238,9 +271,17 @@ bool gpu_init_context (GPUData ** data)
 {
   bool initialized = ctx;
   if (!initialized) {
+#ifdef __HIP_PLATFORM_AMD__
+    // AMD ROCm - use Runtime API (implicit context)
+    HIP_CHECK (hipSetDevice(0));
+    HIP_CHECK (hipStreamCreate(&stream));
+    ctx = (hipCtx_t)1;  // flag to indicate initialized
+#else
+    // NVIDIA via HIP-on-CUDA - use Driver API
     HIP_CHECK (hipInit (0));
     HIP_CHECK (hipDeviceGet (&dev, 0));
     HIP_CHECK (hipCtxCreate (&ctx, 0, dev));
+#endif
   }
   *data = NULL;
   return !initialized;
@@ -264,7 +305,7 @@ void realloc_ssbo (size_t field_size)
   hipDeviceptr_t ptr;
   HIP_CHECK (hipMalloc ((void **) &ptr, totalsize)); // fixme: allocates memory twice
   if (GPUContext.current_size > 0) {
-    HIP_CHECK (hipMemcpyDtoD (ptr, ssbo, GPUContext.current_size));
+    HIP_CHECK (hipMemcpy ((void *)ptr, (void *)ssbo, GPUContext.current_size, hipMemcpyDeviceToDevice));
     HIP_CHECK (hipFree ((void *) ssbo));
   }
   ssbo = ptr;
@@ -277,9 +318,9 @@ void gpu_cpu_sync_scalar (int i, int block, char * data, size_t field_size, Sync
   char * cd = data + offset;
   hipDeviceptr_t gd = ssbo + offset;
   if (mode == GPU_READ)
-    HIP_CHECK (hipMemcpyDtoH (cd, gd, totalsize));
+    HIP_CHECK (hipMemcpy (cd, (void *)gd, totalsize, hipMemcpyDeviceToHost));
   else if (mode == GPU_WRITE)
-    HIP_CHECK (hipMemcpyHtoD (gd, cd, totalsize));
+    HIP_CHECK (hipMemcpy ((void *)gd, cd, totalsize, hipMemcpyHostToDevice));
   else
     assert (false);
 }
@@ -288,14 +329,27 @@ void reset_scalar (int i, int block, size_t field_size, double val)
 {
   size_t size = field_size*sizeof(real);
   size_t offset = i*size, totalsize = max(block, 1)*size;
+  if (val == 0.)
+    HIP_CHECK (hipMemset ((void *)(ssbo + offset), 0, totalsize));
+  else {
 #if SINGLE_PRECISION
-  float fval = val;
-  uint32_t bits;
-  memcpy (&bits, &fval, sizeof(bits));
-  HIP_CHECK (hipMemsetD32 (ssbo + offset, bits, totalsize/sizeof(float)));
+    float fval = val;
+    uint32_t bits;
+    memcpy (&bits, &fval, sizeof(bits));
+#ifdef __HIP_PLATFORM_AMD__
+    // Note: For non-zero values, need to use a kernel or hipMemcpy pattern fill
+    float * temp = (float *) malloc (totalsize);
+    for (size_t j = 0; j < totalsize/sizeof(float); j++)
+      temp[j] = fval;
+    HIP_CHECK (hipMemcpy ((void *)(ssbo + offset), temp, totalsize, hipMemcpyHostToDevice));
+    free (temp);
 #else
-  fprintf (stderr, "%s:%d: error: not implemented yet\n");
+    HIP_CHECK (hipMemsetD32 (ssbo + offset, bits, totalsize/sizeof(float)));
 #endif
+#else
+    fprintf (stderr, "%s:%d: error: not implemented yet\n", __FILE__, __LINE__);
+#endif
+  }
 }
 
 void finalize_shader (Shader * shader, External * externals, External * merged,
@@ -411,7 +465,8 @@ void post_setup_shader (Shader * shader, External * externals)
   
   assert (ssbo);
   if (shader->ssbo != ssbo) {
-    HIP_CHECK (hipMemcpyHtoDAsync (shader->_data, &ssbo, sizeof (ssbo), stream));
+    HIP_CHECK (hipMemcpyAsync ((void *)shader->_data, &ssbo, sizeof (ssbo),
+                               hipMemcpyHostToDevice, stream));
     shader->ssbo = ssbo;
   }
     
@@ -509,15 +564,31 @@ int run_shader (const Shader * shader, const RegionParameters * region)
 
 void gpu_free_solver (void)
 {
+#ifdef __HIP_PLATFORM_AMD__
+  // AMD ROCm - use Runtime API
+  HIP_CHECK (hipDeviceSynchronize ());
+  if (stream) {
+    HIP_CHECK (hipStreamDestroy (stream));
+    stream = 0;
+  }
+  HIP_CHECK (hipDeviceReset ());
+#else
+  // NVIDIA via HIP-on-CUDA - use Driver API
   HIP_CHECK (hipCtxSynchronize ());
   HIP_CHECK (hipCtxDestroy (ctx));
-  ctx = NULL;
+#endif
+  ctx = 0;
 }
 
 void gpu_synchronize()
 {
-  if (ctx)
+  if (ctx) {
+#ifdef __HIP_PLATFORM_AMD__
+    HIP_CHECK (hipDeviceSynchronize ());
+#else
     HIP_CHECK (hipCtxSynchronize ());
+#endif
+  }
 }
 
 /**
@@ -568,13 +639,23 @@ static hipFunction_t compile_kernel (const char * start, const char * op)
   s += strlen(start); while (*s != '\n') *s++ = ' '; 
   HIPRTC_CHECK (hiprtcCreateProgram (&prog, kernel_source, "reduce.cu",
                                      0, NULL, NULL));
-  char arch[] = "--gpu-architecture=compute_????";
+  char arch[64];
   architecture (arch);
+#ifdef __HIP_PLATFORM_AMD__
+  // AMD ROCm - use HIP-compatible options
+  const char* options[] = {
+    arch,
+    "--std=c++14",
+    "-ffast-math"
+  };
+#else
+  // NVIDIA via HIP-on-CUDA
   const char* options[] = {
     arch,
     "--std=c++11",
     "--use_fast_math"
   };
+#endif
   if (hiprtcCompileProgram (prog, 3, options) != HIPRTC_SUCCESS) {
     //    fputs (kernel_source, stderr);
     size_t log_size;
@@ -669,7 +750,7 @@ float cuda_reduce (hipDeviceptr_t d_input, const size_t N, const char op)
 
   /*        Copy result back        */  
   float gpu_reduce;
-  HIP_CHECK (hipMemcpyDtoH (&gpu_reduce, input, sizeof(float)));
+  HIP_CHECK (hipMemcpy (&gpu_reduce, (void *)input, sizeof(float), hipMemcpyDeviceToHost));
 #if 0
   /*    Cleanup    */
   HIP_CHECK(hipFree(d_output_a));
