@@ -12,7 +12,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
-#pragma autolink -L$BASILISK/ppr -lppr -lgfortran
+#pragma autolink -lppr -lgfortran
 
 #define p1e_method 100
 #define p3e_method 101

@@ -8,7 +8,7 @@ HIP-on-CUDA version. This will need to be adapted for the HIP/ROCm
 version. See also the [Makefile]() for compilation of the
 corresponding `libhip.a` library. */
 
-#pragma autolink -L$BASILISK/grid/hip -lhip -lcuda -lcudart -lnvrtc -L$BASILISK/grid/gpu -lerrors
+#pragma autolink -lhip -lcuda -lcudart -lnvrtc -lerrors
                
 static void hip_cartesian_methods()
 {
