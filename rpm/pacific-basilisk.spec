@@ -7,7 +7,7 @@ Version:        %{?version}
 Release:        %{?release}
 Summary:        PacIFiC basilisk
 License:        MIT
-URL:            https://gitlab.math.ubc.ca/pacific-devel-team/pacific-basilisk
+URL:            https://github.com/PacIFiC-Development-Team/basilisk
 Source0:        pacific-basilisk-%{version}.tar.gz
  
 BuildRequires:  cmake-rpm-macros
@@ -36,7 +36,13 @@ Basilisk
   -DCMAKE_INSTALL_RPATH_USE_LINK_PATH:BOOL=OFF \
   -DBUILD_SHARED_LIBS:BOOL=ON \
   -DCMAKE_BUILD_TYPE:STRING=Debug \
-  -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON 
+  -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON \
+  -DBASILISK_USE_PPR=ON \
+  -DBASILISK_USE_KDT=ON \
+  -DBASILISK_USE_CVMIX=OFF \
+  -DBASILISK_USE_GLSL=ON \
+  -DBASILISK_USE_CUDA=OFF \
+  -DBASILISK_USE_HIP=OFF 
 %cmake_build 
 
 %install
@@ -45,15 +51,24 @@ Basilisk
 %files
 %license src/COPYING
 %{_includedir}/basilisk/*
-%{_bindir}/qcc
 %{_bindir}/bview2D
 %{_bindir}/bview2Dm
 %{_bindir}/bview3D
+%{_bindir}/kdtquery
+%{_bindir}/ppm2gif
+%{_bindir}/ppm2mpeg
+%{_bindir}/ppm2ogv
+%{_bindir}/qcc
+%{_bindir}/xyz2kdt
+%{_libdir}/cmake/basilisk/*
+%{_libdir}/liberrors.a
 %{_libdir}/libfb_tiny.a
 %{_libdir}/libglutils.a
+%{_libdir}/libgpu.a
+%{_libdir}/libkdt.a
+%{_libdir}/libppr.a
 %{_libdir}/libtinyrenderer.a
-%{_libdir}/libwsserver.a
-%{_libdir}/cmake/basilisk/*
+%{_libdir}/libws.a
 
 %changelog
 * Thu Jan 15 2026 Conor Olive - %{version}-%{release}
