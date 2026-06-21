@@ -2,9 +2,7 @@ usr/bin/bview2D
 usr/bin/bview2Dm
 usr/bin/bview3D
 usr/bin/kdtquery
-usr/bin/ppm2gif
-usr/bin/ppm2mpeg
-usr/bin/ppm2ogv
+usr/bin/ppm2*
 usr/bin/qcc
 usr/bin/xyz2kdt
 usr/include/basilisk/* 
