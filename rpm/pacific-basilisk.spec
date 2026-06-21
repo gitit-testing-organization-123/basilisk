@@ -15,7 +15,24 @@ BuildRequires:  cmake-rpm-macros
 BuildRequires:  cmake >= 3.20
 BuildRequires:  gcc
 BuildRequires:  gcc-c++
+BuildRequires:  gcc-gfortran
+BuildRequires:  glfw-devel
+BuildRequires:  bison
+BuildRequires:  flex
+BuildRequires:  mesa-libGL-devel
 BuildRequires:  make
+
+Requires:       gcc
+Requires:       openmpi
+Requires:       python3
+Requires:       swig
+Requires:       ffmpeg
+Requires:       ImageMagick
+Requires:       gifsicle
+Requires:       gnuplot
+Requires:       glfw
+Requires:       mesa-libGL
+Requires:       libgfortran
  
 %description
 Basilisk
