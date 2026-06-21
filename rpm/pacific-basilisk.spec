@@ -26,12 +26,12 @@ Requires:       gcc
 Requires:       openmpi
 Requires:       python3
 Requires:       swig
-Requires:       ffmpeg
 Requires:       ImageMagick
 Requires:       gifsicle
 Requires:       gnuplot
-Requires:       glfw
-Requires:       mesa-libGL
+Requires:       mesa-libGL-devel
+Requires:       libglvnd-devel
+Requires:       glfw-devel
 Requires:       libgfortran
  
 %description
