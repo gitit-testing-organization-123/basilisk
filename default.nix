@@ -5,6 +5,7 @@
   hipSupport ? false,
   pprSupport ? true,
   kdtSupport ? true,
+  cvmixSupport ? false,
 }:
 
 pkgs.callPackage ./basilisk.nix {
@@ -14,5 +15,6 @@ pkgs.callPackage ./basilisk.nix {
     hipSupport
     pprSupport
     kdtSupport
+    cvmixSupport
     ;
 }

@@ -25,6 +25,7 @@
   hipSupport ? false,
   pprSupport ? true,
   kdtSupport ? true,
+  cvmixSupport ? false,
 }:
 
 let
@@ -38,6 +39,7 @@ stdenv.mkDerivation {
     + optionalString glslSupport "-glsl"
     + optionalString cudaSupport "-cuda"
     + optionalString hipSupport "-hip"
+    + optionalString cvmixSupport "-cvmix"
     + optionalString (!pprSupport) "-without-ppr"
     + optionalString (!kdtSupport) "-without-kdt";
 
@@ -54,7 +56,7 @@ stdenv.mkDerivation {
   ]
   ++ optional cudaSupport cudaPackages.cuda_nvcc
   ++ optional hipSupport rocmPackages.hipcc
-  ++ optional pprSupport gfortran;
+  ++ optional (pprSupport || cvmixSupport) gfortran;
 
   buildInputs =
     optionals glslSupport [
@@ -78,7 +80,8 @@ stdenv.mkDerivation {
     imagemagick
     gifsicle
     stdenv.cc.cc.lib
-  ];
+  ]
+  ++ optional (pprSupport || cvmixSupport) gfortran.cc.lib;
 
   cmakeFlags = [
     "-DCMAKE_BUILD_TYPE=Release"
@@ -87,7 +90,8 @@ stdenv.mkDerivation {
   ++ optional glslSupport "-DBASILISK_USE_GLSL=ON"
   ++ optional hipSupport "-DBASILISK_USE_HIP=ON"
   ++ optional pprSupport "-DBASILISK_USE_PPR=ON"
-  ++ optional kdtSupport "-DBASILISK_USE_KDT=ON";
+  ++ optional kdtSupport "-DBASILISK_USE_KDT=ON"
+  ++ optional cvmixSupport "-DBASILISK_USE_CVMIX=ON";
 
   passthru = {
     inherit
@@ -96,6 +100,7 @@ stdenv.mkDerivation {
       hipSupport
       pprSupport
       kdtSupport
+      cvmixSupport
       ;
   };
 

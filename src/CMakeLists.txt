@@ -91,6 +91,7 @@ add_subdirectory(grid)
 
 add_subdirectory(kdt)
 add_subdirectory(ppr)
+add_subdirectory(cvmix)
 
 # --- bview2D -----------------------------------------------------------------
 

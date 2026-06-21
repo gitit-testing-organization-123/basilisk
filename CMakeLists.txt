@@ -4,10 +4,9 @@ project(basilisk
   LANGUAGES C CXX
 )
 
-option(BASILISK_USE_PPR "Build the PPR remapping library" OFF)
-option(BASILISK_USE_KDT "Build the KDT terrain library and tools" OFF)
+include(cmake/basiliskOptions.cmake)
 
-if(BASILISK_USE_PPR)
+if(BASILISK_USE_PPR OR BASILISK_USE_CVMIX)
   enable_language(Fortran)
 endif()
 
@@ -18,8 +17,11 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(BASILISK_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
 include(GNUInstallDirs)
 
+# --- third_party -------------------------------------------------------------
 
-# --- config ---------------------------------------------------------
+add_subdirectory(third_party)
+
+# --- config ------------------------------------------------------------------
 
 include(${BASILISK_ROOT}/cmake/detect_compiler.cmake)
 detect_c_compiler(COMP)
@@ -139,9 +141,9 @@ install(TARGETS
   tinyrenderer
   ws
   EXPORT basiliskTargets
-  RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
-  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+  RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT main
+  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT main
+  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT main
 )
 
 set(basilisk_PPM_CONVERTER_PROGRAMS
@@ -153,11 +155,13 @@ set(basilisk_PPM_CONVERTER_PROGRAMS
 
 install(PROGRAMS ${basilisk_PPM_CONVERTER_PROGRAMS}
   DESTINATION "${CMAKE_INSTALL_BINDIR}"
+  COMPONENT main
 )
 
 # --- Install headers / sources needed as includes --------------------------------
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/src/"
   DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/basilisk"
+  COMPONENT main
   FILES_MATCHING
   PATTERN "*"
 )
@@ -167,12 +171,14 @@ install(EXPORT basiliskTargets
   FILE basiliskTargets.cmake
   NAMESPACE basilisk::
   DESTINATION "${basilisk_INSTALL_CMAKEDIR}"
+  COMPONENT main
 )
 
 # --- Install helper CMake modules -------------------------------------------------
 install(FILES
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake/basilisk_add_executable.cmake"
   DESTINATION "${basilisk_INSTALL_CMAKEDIR}"
+  COMPONENT main
 )
 
 # --- Generate & install basiliskConfig.cmake (+ optional version file) ------------
@@ -193,4 +199,5 @@ install(FILES
   "${CMAKE_CURRENT_BINARY_DIR}/basiliskConfig.cmake"
   "${CMAKE_CURRENT_BINARY_DIR}/basiliskConfigVersion.cmake"
   DESTINATION "${basilisk_INSTALL_CMAKEDIR}"
+  COMPONENT main
 )

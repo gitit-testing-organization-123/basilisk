@@ -12,6 +12,12 @@ if(@BASILISK_USE_HIP@)
   find_dependency(hip CONFIG)
   find_dependency(hiprtc CONFIG)
 endif()
+if(@BASILISK_USE_CVMIX@ AND NOT TARGET CVMix::cvmix)
+  add_library(CVMix::cvmix STATIC IMPORTED)
+  set_target_properties(CVMix::cvmix PROPERTIES
+    IMPORTED_LOCATION "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_LIBDIR@/libcvmix.a"
+  )
+endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/basiliskTargets.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/basilisk_add_executable.cmake")
