@@ -14,7 +14,6 @@ Build-Depends:
  libglu1-mesa-dev,
  libosmesa6-dev,
  libglew-dev
-
 Standards-Version: 4.6.2
 Homepage: https://anthonywachs.github.io/PacIFiC/
 Rules-Requires-Root: no
