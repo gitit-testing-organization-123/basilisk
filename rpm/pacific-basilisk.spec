@@ -72,9 +72,7 @@ Basilisk
 %{_bindir}/bview2Dm
 %{_bindir}/bview3D
 %{_bindir}/kdtquery
-%{_bindir}/ppm2gif
-%{_bindir}/ppm2mpeg
-%{_bindir}/ppm2ogv
+%{_bindir}/ppm2*
 %{_bindir}/qcc
 %{_bindir}/xyz2kdt
 %{_libdir}/cmake/basilisk/*
