@@ -821,7 +821,9 @@ void ast_macro_replacement (Ast * statement, Ast * initial, Stack * stack,
                       NCB(param, ";"));
             free (tmpname);
           }
-          assert (ast_block_list_insert_before2 (ast_find (copy, sym_block_item), decl));
+          Ast * inserted = ast_block_list_insert_before2 (ast_find (copy, sym_block_item), decl);
+          assert (inserted);
+          (void) inserted;
           r.complex_call = true;
         }
       }

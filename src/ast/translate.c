@@ -1559,9 +1559,13 @@ static void combinations (Ast * n, Stack * stack, TranslateData * d,
     maybeconst (copy, stack, replace_const, &(ReplaceConst){consts, bits});
     char statement[100];
     snprintf (statement, 99, "_statement%d_", bits);
-    assert (ast_replace (conditional, statement, copy));
+    AstTerminal * result = ast_replace (conditional, statement, copy);
+    assert (result);
+    (void) result;
   }
-  assert (ast_replace (conditional, "_statement0_", n));
+  AstTerminal * result = ast_replace (conditional, "_statement0_", n);
+  assert (result);
+  (void) result;
   ast_replace_child (item, 0, ast_new_children (ast_new (list, sym_statement),
 						conditional));
 }
@@ -2309,8 +2313,13 @@ static void mpi_reductions (Ast * macro_statement, Stack * stack)
     assert (expr);
     Ast * statement = ast_ancestor (macro_statement, 2);
     ast_set_line (expr, ast_left_terminal (statement), true);
-    foreach_item_r (expr->child[1], sym_block_item, block_item)
-      assert (ast_block_list_insert_before2 (ast_parent (statement, sym_block_item), block_item->child[0]));
+    foreach_item_r (expr->child[1], sym_block_item, block_item) {
+      Ast * inserted =
+	ast_block_list_insert_before2 (ast_parent (statement, sym_block_item),
+				       block_item->child[0]);
+      (void) inserted;
+      assert (inserted);
+    }
   }
   
   str_prepend (sreductions, "{");
@@ -4368,7 +4377,9 @@ static void macros (Ast * n, Stack * stack, void * data)
       ast_left_terminal (arg)->before = before;
       ast_left_terminal (parent->child[index])->before = NULL;
     }
-    assert (ast_replace (expr, "_statement_", ast_child (n, sym_statement)));
+    AstTerminal * result = ast_replace (expr, "_statement_", ast_child (n, sym_statement));
+    assert (result);
+    (void) result;
     ast_replace_child (parent->parent, ast_child_index (parent), expr);
     break;
   }
@@ -4425,7 +4436,9 @@ static void macros (Ast * n, Stack * stack, void * data)
     str_append (decl, fors, ";", fore, "){_statement_;}}");
     Ast * expr = ast_parse_expression (decl, ast_get_root (n));
     free (decl); free (fors); free (fore);
-    assert (ast_replace (expr, "_statement_", ast_child (n, sym_statement)));
+    AstTerminal * result = ast_replace (expr, "_statement_", ast_child (n, sym_statement));
+    assert (result);
+    (void) result;
     ast_replace_child (n->parent->parent, ast_child_index (n->parent), expr);
     break;
   }
@@ -4498,6 +4511,7 @@ static void macros (Ast * n, Stack * stack, void * data)
 	  foreach_item (list, 2, expr) {
 	    const char * typename =
 	      ast_typedef_name (ast_expression_type (expr, stack, false));
+      (void) typename;
 	    assert (typename);
 	    Ast * unary = ast_is_unary_expression (expr->child[0]);
 	    if (!unary) {

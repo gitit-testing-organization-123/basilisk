@@ -1186,8 +1186,10 @@ static bool system_pivot (System * s, Stack * stack)
 	    /* Substract the scaled pivot row from the current row */
 	    DEBUG (fprintf (stderr, "pivoting %d ", h), constraint_print (s->r[h], stderr, LINENO | INDEX | NORIGIN),
 		   fprintf (stderr, "         in "), constraint_print (r, stderr, LINENO | INDEX | NORIGIN));
-	    foreach_key(r, c)
-	      assert (key_remove_dimension (c, r));
+	    foreach_key(r, c) {
+	      bool removed = key_remove_dimension (c, r);
+	      assert (removed);
+	    }
 	    Dimension * d = dimensions_multiply (r->origin, s->alloc, r, s->r[h], - f);
 	    foreach_key(d, c)
 	      key_add_dimension (c, d, stack);
