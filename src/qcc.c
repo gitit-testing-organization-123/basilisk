@@ -534,11 +534,10 @@ int main (int argc, char ** argv)
       exit (1);
     status = WEXITSTATUS (status);
   }
-  int check_dimensions (void * root,
-			int nolineno,
-			int run, FILE * dimensions, int finite, int redundant,
-			int warn,
-			int maxcalls);
+  bool check_dimensions (AstRoot * root,
+			 bool nolineno,
+			 int run, FILE * dimensions,
+			 int finite, int redundant, int warn, int maxcalls);
   if (ast &&
       status == 0 &&
       !check_dimensions (ast, nolineno,
