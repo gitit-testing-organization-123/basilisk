@@ -37,11 +37,6 @@ Requires:       libgfortran
 %description
 Basilisk
 
-%global __spec_build_shell /bin/bash
-%global _hardened_build 0
-%global _lto_cflags %{nil}
-%global _annotated_build 0
-
 %prep
 %autosetup 
 
