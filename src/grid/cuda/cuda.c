@@ -8,9 +8,7 @@ can be installed on Debian systems using:
 ~~~bash
 apt install nvidia-driver nvidia-cuda-dev
 ~~~
-
-For some reason the performances are very low compared to the [GLSL
-backend](/src/grid/gpu/opengl.c) (on the same nvidia card). */
+*/
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -18,6 +16,8 @@ backend](/src/grid/gpu/opengl.c) (on the same nvidia card). */
 #include <string.h>
 #include <math.h>
 #include <assert.h>
+#include <sys/stat.h>
+#include <errno.h>
 #include "a32.h"
 
 typedef struct { double x, y, z; } coord;
@@ -102,19 +102,30 @@ typedef struct {
   CUdeviceptr location;
   int type, nd, local;
   size_t size;
-  void * pointer;
+  void * pointer, * last;
 } MyUniform;
 
 struct _Shader {
   unsigned ng[2], nwg[2];
-  CUdeviceptr _data, csOrigin;
+  CUdeviceptr _data, csOrigin, ssbo;
   MyUniform * uniforms;
   CUmodule module;
   CUfunction kernel;
 };
 
+static void * memcpycheck (CUdeviceptr location, void * pointer, void * last, size_t size)
+{
+  if (last && !memcmp (pointer, last, size))
+    return last;
+  CUDA_CHECK (cuMemcpyHtoDAsync (location, pointer, size, stream));
+  if (!last) last = malloc (size);
+  return memcpy (last, pointer, size);
+}
+
 void free_shader (Shader * s)
 {
+  for (MyUniform * g = s->uniforms; g && g->type; g++)
+    free (g->last);
   free (s->uniforms);
   free (s);
 }
@@ -133,7 +144,9 @@ void architecture (char * arch)
   // fixme: not sure whether this should be compute_%d%d or sm_%d%d ??
 }
 
-Shader * load_normal_shader (const char * fs, const char * func, const char * file, int line)
+static char * compile_ptx (const char * fs, const char * arch,
+                           const char * func, const char * file, int line,
+                           size_t * ptxSize)
 {
   //  fputs (fs, stderr);
   nvrtcProgram prog;
@@ -143,8 +156,6 @@ Shader * load_normal_shader (const char * fs, const char * func, const char * fi
                                   NULL,
                                   NULL
                                   ));
-  char arch[] = "--gpu-architecture=compute_????";
-  architecture (arch);
   const char *opts[] = {
     "--std=c++11",
     arch,
@@ -177,9 +188,8 @@ Shader * load_normal_shader (const char * fs, const char * func, const char * fi
   // Get PTX
   // ------------------------------------------------------------
 
-  size_t ptxSize;
-  NVRTC_CHECK (nvrtcGetPTXSize (prog, &ptxSize));
-  char ptx[ptxSize];
+  NVRTC_CHECK (nvrtcGetPTXSize (prog, ptxSize));
+  char * ptx = malloc (*ptxSize);
   NVRTC_CHECK (nvrtcGetPTX (prog, ptx));
   NVRTC_CHECK (nvrtcDestroyProgram (&prog));
 
@@ -189,6 +199,74 @@ Shader * load_normal_shader (const char * fs, const char * func, const char * fi
     fprintf (stderr, "%s:%d: warning: CUDA: found FP64 assembly in single precision mode\n",
              file, line);
 #endif // SINGLE_PRECISION
+
+  return ptx;
+}
+
+static
+int create_tmpdir (const char * path)
+{
+  struct stat st;
+  if (stat (path, &st) == 0) {
+    if (S_ISDIR (st.st_mode))
+      return 0; // Directory exists
+    else {
+      errno = ENOTDIR;
+      return -1; // Path exists but is not a directory
+    }
+  }
+  // Directory does not exist, try to create it
+  if (mkdir (path, 0755) == 0)
+    return 0; // Successfully created
+  return -1; // Failed to create
+}
+
+Shader * load_normal_shader (const char * fs,
+                             const char * func, const char * file, int line)
+{
+  char arch[] = "--gpu-architecture=compute_????";
+  architecture (arch);
+
+  // ---------------------------------------------------------------
+  // Try to read from a compilation cache (by default in /tmp/buda/)
+  // ---------------------------------------------------------------
+  
+  Adler32Hash hasha;
+  a32_hash_init (&hasha);
+  a32_hash_add (&hasha, fs, strlen (fs));
+  a32_hash_add (&hasha, arch, strlen (arch));
+  uint32_t hash = a32_hash (&hasha);
+
+  const char * tmpdir = getenv ("TMPDIR"), * tmp = tmpdir ? tmpdir : "/tmp";
+  char cache[strlen(tmp) + strlen("/buda/ffffffff") + 1];
+  sprintf (cache, "%s/buda", tmp);
+  if (create_tmpdir (cache)) {
+    fprintf (stderr, "%s:%d: cannot create temporary directory '%s'\n", \
+             __FILE__, __LINE__, cache);
+    perror ("");
+    exit (1);
+  }
+  sprintf (cache, "%s/buda/%x", tmp, hash);
+  char * ptx;
+  struct stat st;
+  if (stat (cache, &st) == 0) { // found in cache
+    FILE * fp = fopen (cache, "r");
+    assert (fp);
+    ptx = malloc (st.st_size);
+    assert (fread (ptx, 1, st.st_size, fp) == st.st_size);
+    fclose (fp);
+  }
+  else { // not found in cache
+    size_t size;
+    ptx = compile_ptx (fs, arch, func, file, line, &size);
+    if (!ptx)
+      return NULL;
+    FILE * fp = fopen (cache, "w");
+    if (fp) {
+      assert (fwrite (ptx, 1, size, fp) == size);
+      fclose (fp);
+    }
+  }
   
   // ------------------------------------------------------------
   // Load PTX module
@@ -196,6 +274,7 @@ Shader * load_normal_shader (const char * fs, const char * func, const char * fi
 
   Shader * shader = calloc (1, sizeof (Shader));
   CUDA_CHECK (cuModuleLoadData (&shader->module, ptx));
+  free (ptx);
   CUDA_CHECK (cuModuleGetFunction (&shader->kernel, shader->module, func));
   return shader;
 }
@@ -355,7 +434,8 @@ void finalize_shader (Shader * shader, External * externals, External * merged,
 	shader->uniforms[nuniforms] = (MyUniform){
 	  .location = location, .type = g->type, .nd = nd, .size = size,
 	  .local = g->global == 1 ? -1 : g->used - 1,
-	  .pointer = g->global == 1 ? g->pointer : NULL };
+	  .pointer = g->global == 1 ? g->pointer : NULL
+        };
 	shader->uniforms[nuniforms + 1].type = 0;
 	nuniforms++;
 	// uniforms refering to local variables must be in the 'externals' local list
@@ -375,12 +455,15 @@ void post_setup_shader (Shader * shader, External * externals)
   Set SSBO pointer. */
   
   assert (ssbo);
-  CUDA_CHECK (cuMemcpyHtoDAsync (shader->_data, &ssbo, sizeof (ssbo), stream));
-
+  if (shader->ssbo != ssbo) {
+    CUDA_CHECK (cuMemcpyHtoDAsync (shader->_data, &ssbo, sizeof (ssbo), stream));
+    shader->ssbo = ssbo;
+  }
+    
   /**
   ## Set uniforms */
 
-  for (const MyUniform * g = shader->uniforms; g && g->type; g++) {
+  for (MyUniform * g = shader->uniforms; g && g->type; g++) {
     void * pointer = g->pointer;
     if (!pointer) {
       assert (g->local >= 0);
@@ -388,14 +471,14 @@ void post_setup_shader (Shader * shader, External * externals)
     }
     switch (g->type) {
     case sym_INT: case sym_FLOAT: case sym_VEC4: case sym_BOOL:
-      CUDA_CHECK (cuMemcpyHtoDAsync (g->location, pointer, g->size, stream));
+      g->last = memcpycheck (g->location, pointer, g->last, g->size);
       break;
     case sym_LONG: {
       int p[g->nd];
       long * data = pointer;
       for (int i = 0; i < g->nd; i++)
 	p[i] = data[i];
-      CUDA_CHECK (cuMemcpyHtoDAsync (g->location, p, g->size, stream));
+      g->last = memcpycheck (g->location, p, g->last, g->size);
       break;
     }
 #if SINGLE_PRECISION
@@ -404,12 +487,12 @@ void post_setup_shader (Shader * shader, External * externals)
       double * data = pointer;
       for (int i = 0; i < g->nd; i++)
 	p[i] = data[i];
-      CUDA_CHECK (cuMemcpyHtoDAsync (g->location, p, g->size, stream));
+      g->last = memcpycheck (g->location, p, g->last, g->size);
       break;
     }
 #else // DOUBLE_PRECISION
     case sym_DOUBLE: case sym__COORD: case sym_COORD:
-      CUDA_CHECK (cuMemcpyHtoDAsync (g->location, pointer, g->size, stream));
+      g->last = memcpycheck (g->location, pointer, g->last, g->size);
       break;
 #endif // DOUBLE_PRECISION
     default:
@@ -538,7 +621,7 @@ static CUfunction compile_kernel (const char * start, const char * op)
     "--use_fast_math"
   };
   if (nvrtcCompileProgram (prog, 3, options) != NVRTC_SUCCESS) {
-    fputs (kernel_source, stderr);
+    //    fputs (kernel_source, stderr);
     size_t log_size;
     NVRTC_CHECK (nvrtcGetProgramLogSize (prog, &log_size));
     if (log_size) {
