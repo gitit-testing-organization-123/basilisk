@@ -1189,6 +1189,7 @@ static bool system_pivot (System * s, Stack * stack)
 	    foreach_key(r, c) {
 	      bool removed = key_remove_dimension (c, r);
 	      assert (removed);
+        (void) removed;
 	    }
 	    Dimension * d = dimensions_multiply (r->origin, s->alloc, r, s->r[h], - f);
 	    foreach_key(d, c)
