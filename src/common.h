@@ -42,6 +42,18 @@ int N = 16;
 
 typedef struct { int i; } scalar;
 
+enum {
+  dump_field_cell = 0,
+  dump_field_face = 1,
+  dump_field_vertex = 2
+};
+
+typedef struct {
+  char * name;
+  int index;
+  int kind, axis, count;
+} DumpField;
+
 typedef struct {
   scalar x;
 #if dimension > 1

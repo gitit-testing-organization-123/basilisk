@@ -10,7 +10,8 @@ CFLAGS += -O2 -DMTRACE=3
 
 # list only non-default tests
 check: halo.vtst interpolate.vtst events.vtst faces.vtst coarsen.vtst \
-	lid-restore.tst poiseuille.vtst tag.ctst
+	lid-restore.tst poiseuille.vtst tag.ctst dump-staggered.tst \
+	dump-staggered-multigrid.tst
 
 # these tests have special dependencies/compilation requirements
 
@@ -494,6 +495,10 @@ restore-multigrid-serial.tst: pdump-multigrid.tst restore-multigrid-serial.dump
 restore-rectangle.dump: dump-rectangle/restore-rectangle.dump
 	ln -sf dump-rectangle/restore-rectangle.dump
 restore-rectangle.tst: dump-rectangle.tst restore-rectangle.dump
+
+dump-staggered-multigrid.c: dump-staggered.c
+	ln -sf dump-staggered.c dump-staggered-multigrid.c
+dump-staggered-multigrid.tst: CFLAGS += -grid=multigrid
 
 bump2Dp-restore.c: bump2Dp.c
 	ln -sf bump2Dp.c bump2Dp-restore.c

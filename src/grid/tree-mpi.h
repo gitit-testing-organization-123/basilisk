@@ -1292,11 +1292,61 @@ void mpi_partitioning()
   mpi_boundary_update_buffers();
 }
 
-void restore_mpi (FILE * fp, scalar * list1)
+static double restore_mpi_read_double (FILE * fp)
+{
+  double val;
+  if (fread (&val, sizeof(double), 1, fp) != 1) {
+    fprintf (stderr, "restore(): error: expecting a field value\n");
+    exit (1);
+  }
+  return isfinite(val) ? val : nodata;
+}
+
+static void restore_mpi_read_item (Point point, FILE * fp, int index,
+				    int kind, int axis, int count)
+{
+  if (index == INT_MAX) {
+    for (int i = 0; i < count; i++)
+      restore_mpi_read_double (fp);
+    return;
+  }
+  if (kind == dump_field_cell)
+    val(((scalar){index}),0,0,0) = restore_mpi_read_double (fp);
+  else if (kind == dump_field_face) {
+    int d = 0;
+    foreach_dimension() {
+      if (d == axis) {
+	val(((scalar){index}),0,0,0) = restore_mpi_read_double (fp);
+	val(((scalar){index}),1,0,0) = restore_mpi_read_double (fp);
+      }
+      d++;
+    }
+  }
+  else if (kind == dump_field_vertex) {
+    for (int i = 0; i <= 1; i++)
+#if dimension >= 2
+      for (int j = 0; j <= 1; j++)
+#endif
+#if dimension >= 3
+	for (int k = 0; k <= 1; k++)
+#endif
+	{
+#if dimension == 1
+	  val(((scalar){index}),i,0,0) = restore_mpi_read_double (fp);
+#elif dimension == 2
+	  val(((scalar){index}),i,j,0) = restore_mpi_read_double (fp);
+#else
+	  val(((scalar){index}),i,j,k) = restore_mpi_read_double (fp);
+#endif
+	}
+  }
+}
+
+void restore_mpi (FILE * fp, DumpField * fields, int nfields, long record_len)
 {
   long index = 0, nt = 0, start = ftell (fp);
-  scalar size[], * list = list_concat ({size}, list1);;
-  long offset = sizeof(double)*list_len(list);
+  scalar size[];
+  long offset = sizeof(double)*record_len;
 
   // read local cells
   static const unsigned short set = 1 << user;
@@ -1308,15 +1358,10 @@ void restore_mpi (FILE * fp, scalar * list1)
 	fprintf (stderr, "restore(): error: expecting 'flags'\n");
 	exit (1);
       }
-      for (scalar s in list) {
-	double val;
-	if (fread (&val, sizeof(double), 1, fp) != 1) {
-	  fprintf (stderr, "restore(): error: expecting scalar\n");
-	  exit (1);
-	}
-	if (s.i != INT_MAX)
-	  s[] = val;
-      }
+      size[] = restore_mpi_read_double (fp);
+      for (int i = 0; i < nfields; i++)
+	restore_mpi_read_item (point, fp, fields[i].index, fields[i].kind,
+				fields[i].axis, fields[i].count);
       if (level == 0)
 	nt = size[];
       cell.pid = balanced_pid (index, nt, npe());
@@ -1346,15 +1391,10 @@ void restore_mpi (FILE * fp, scalar * list1)
     if (cell.flags & set)
       fseek (fp, offset, SEEK_CUR);
     else {
-      for (scalar s in list) {
-	double val;
-	if (fread (&val, sizeof(double), 1, fp) != 1) {
-	  fprintf (stderr, "restore(): error: expecting a scalar\n");
-	  exit (1);
-	}
-	if (s.i != INT_MAX)
-	  s[] = val;
-      }
+      size[] = restore_mpi_read_double (fp);
+      for (int i = 0; i < nfields; i++)
+	restore_mpi_read_item (point, fp, fields[i].index, fields[i].kind,
+				fields[i].axis, fields[i].count);
       cell.pid = balanced_pid (index, nt, npe());
       if (is_leaf(cell) && cell.neighbors) {
 	int pid = cell.pid;
@@ -1409,10 +1449,9 @@ void restore_mpi (FILE * fp, scalar * list1)
   flag_border_cells();
   
   scalar * clean = NULL;
-  for (scalar s in list)
-    if (s.i != INT_MAX)
-      clean = list_append (clean, s);
-  free (list);
+  for (int i = 0; i < nfields; i++)
+    if (fields[i].index != INT_MAX)
+      clean = list_add (clean, (scalar){fields[i].index});
   mpi_boundary_update (clean);
   free (clean);
 }

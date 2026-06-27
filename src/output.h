@@ -1,3 +1,5 @@
+#include "timestep.h"
+
 /**
 # Output functions
 
@@ -1016,15 +1018,61 @@ default is "dump".
 */
 
 struct DumpHeader {
-  double t;
+  double t, dt, dt_previous;
   long len;
   int i, depth, npe, version;
   coord n;
 };
 
 static const int dump_version =
-  // 161020
-  170901;
+  260628;
+
+static int dump_field_axis (scalar s)
+{
+  int axis = 0;
+  foreach_dimension() {
+    if (s.v.x.i == s.i)
+      return axis;
+    axis++;
+  }
+  return -1;
+}
+
+static int dump_field_kind (scalar s)
+{
+  return s.face ? dump_field_face :
+    is_vertex_scalar (s) ? dump_field_vertex : dump_field_cell;
+}
+
+static int dump_field_count (int kind)
+{
+  return kind == dump_field_face ? 2 :
+    kind == dump_field_vertex ? (1 << dimension) : 1;
+}
+
+static bool dump_field_nonzero (scalar s)
+{
+  if (s.face) {
+    int nonzero = 0;
+    foreach_dimension()
+      if (s.v.x.i == s.i) {
+	scalar sf = s.v.x;
+	foreach_face (x, reduction(max:nonzero))
+	  if (sf[] != 0.)
+	    nonzero = 1;
+      }
+    return nonzero;
+  }
+  if (is_vertex_scalar (s)) {
+    int nonzero = 0;
+    foreach_vertex (reduction(max:nonzero))
+      if (s[] != 0.)
+	nonzero = 1;
+    return nonzero;
+  }
+  stats ss = statsf (s);
+  return ss.min != 0. || ss.max != 0.;
+}
 
 static scalar * dump_list (scalar * lista, bool zero)
 {
@@ -1036,33 +1084,76 @@ static scalar * dump_list (scalar * lista, bool zero)
   scalar * listb = list_copy (lista);
 #endif
   for (scalar s in listb)
-    if (!s.face && !s.nodump && s.i != cm.i) {
+    if (!s.nodump && s.i != cm.i) {
       if (zero)
 	list = list_add (list, s);
-      else {	
-	stats ss = statsf (s);
-	if (ss.min != 0. || ss.max != 0.)
-	  list = list_add (list, s);
-      }
+      else if (dump_field_nonzero (s))
+	list = list_add (list, s);
     }
   free (listb);
   return list;
 }
 
-static void dump_header (FILE * fp, struct DumpHeader * header, scalar * list)
+static DumpField * dump_fields (scalar * list, int * nfields, long * record_len)
+{
+  *nfields = list_len (list);
+  DumpField * fields = *nfields ? (DumpField *) malloc (*nfields*sizeof(DumpField)) : NULL;
+  *record_len = 1; // subtree size
+  int i = 0;
+  for (scalar s in list) {
+    fields[i].name = strdup (s.name);
+    fields[i].index = s.i;
+    fields[i].kind = dump_field_kind (s);
+    fields[i].axis = fields[i].kind == dump_field_face ?
+      dump_field_axis (s) : -1;
+    fields[i].count = dump_field_count (fields[i].kind);
+    *record_len += fields[i].count;
+    i++;
+  }
+  return fields;
+}
+
+static void dump_fields_free (DumpField * fields, int nfields)
+{
+  for (int i = 0; i < nfields; i++)
+    free (fields[i].name);
+  free (fields);
+}
+
+static long dump_header_size (DumpField * fields, int nfields)
+{
+  long size = sizeof(struct DumpHeader) + sizeof(int) + 4*sizeof(double);
+  for (int i = 0; i < nfields; i++)
+    size += sizeof(unsigned) + strlen(fields[i].name)*sizeof(char) +
+      3*sizeof(int);
+  return size;
+}
+
+static void dump_header (FILE * fp, struct DumpHeader * header,
+			 DumpField * fields, int nfields)
 {
   if (fwrite (header, sizeof(struct DumpHeader), 1, fp) < 1) {
     perror ("dump(): error while writing header");
     exit (1);
   }
-  for (scalar s in list) {
-    unsigned len = strlen(s.name);
+  if (fwrite (&nfields, sizeof(int), 1, fp) < 1) {
+    perror ("dump(): error while writing nfields");
+    exit (1);
+  }
+  for (int i = 0; i < nfields; i++) {
+    unsigned len = strlen(fields[i].name);
     if (fwrite (&len, sizeof(unsigned), 1, fp) < 1) {
       perror ("dump(): error while writing len");
       exit (1);
     }
-    if (fwrite (s.name, sizeof(char), len, fp) < len) {
+    if (fwrite (fields[i].name, sizeof(char), len, fp) < len) {
       perror ("dump(): error while writing s.name");
+      exit (1);
+    }
+    if (fwrite (&fields[i].kind, sizeof(int), 1, fp) < 1 ||
+	fwrite (&fields[i].axis, sizeof(int), 1, fp) < 1 ||
+	fwrite (&fields[i].count, sizeof(int), 1, fp) < 1) {
+      perror ("dump(): error while writing field descriptor");
       exit (1);
     }
   }
@@ -1071,6 +1162,216 @@ static void dump_header (FILE * fp, struct DumpHeader * header, scalar * list)
     perror ("dump(): error while writing coordinates");
     exit (1);
   }
+}
+
+static void dump_write_double (FILE * fp, double val)
+{
+  if (fwrite (&val, sizeof(double), 1, fp) < 1) {
+    perror ("dump(): error while writing field value");
+    exit (1);
+  }
+}
+
+static void dump_write_item (Point point, FILE * fp,
+			     int index, int kind, int axis)
+{
+  if (kind == dump_field_cell)
+    dump_write_double (fp, val(((scalar){index}),0,0,0));
+  else if (kind == dump_field_face) {
+    int d = 0;
+    foreach_dimension() {
+      if (d == axis) {
+	dump_write_double (fp, val(((scalar){index}),0,0,0));
+	dump_write_double (fp, val(((scalar){index}),1,0,0));
+      }
+      d++;
+    }
+  }
+  else if (kind == dump_field_vertex) {
+    for (int i = 0; i <= 1; i++)
+#if dimension >= 2
+      for (int j = 0; j <= 1; j++)
+#endif
+#if dimension >= 3
+	for (int k = 0; k <= 1; k++)
+#endif
+	{
+#if dimension == 1
+	  dump_write_double (fp, val(((scalar){index}),i,0,0));
+#elif dimension == 2
+	  dump_write_double (fp, val(((scalar){index}),i,j,0));
+#else
+	  dump_write_double (fp, val(((scalar){index}),i,j,k));
+#endif
+	}
+  }
+}
+
+static double dump_read_double (FILE * fp)
+{
+  double val;
+  if (fread (&val, sizeof(double), 1, fp) != 1) {
+    fprintf (ferr, "restore(): error: expecting a field value\n");
+    exit (1);
+  }
+  return isfinite(val) ? val : nodata;
+}
+
+static void dump_read_item (Point point, FILE * fp,
+			    int index, int kind, int axis, int count)
+{
+  if (index == INT_MAX) {
+    for (int i = 0; i < count; i++)
+      dump_read_double (fp);
+    return;
+  }
+  if (kind == dump_field_cell)
+    val(((scalar){index}),0,0,0) = dump_read_double (fp);
+  else if (kind == dump_field_face) {
+    int d = 0;
+    foreach_dimension() {
+      if (d == axis) {
+	val(((scalar){index}),0,0,0) = dump_read_double (fp);
+	val(((scalar){index}),1,0,0) = dump_read_double (fp);
+      }
+      d++;
+    }
+  }
+  else if (kind == dump_field_vertex) {
+    for (int i = 0; i <= 1; i++)
+#if dimension >= 2
+      for (int j = 0; j <= 1; j++)
+#endif
+#if dimension >= 3
+	for (int k = 0; k <= 1; k++)
+#endif
+	{
+#if dimension == 1
+	  val(((scalar){index}),i,0,0) = dump_read_double (fp);
+#elif dimension == 2
+	  val(((scalar){index}),i,j,0) = dump_read_double (fp);
+#else
+	  val(((scalar){index}),i,j,k) = dump_read_double (fp);
+#endif
+	}
+  }
+}
+
+static scalar dump_find_scalar (const char * name)
+{
+  for (scalar s in all)
+    if (s.name && !strcmp (s.name, name))
+      return s;
+  return (scalar){INT_MAX};
+}
+
+static void dump_rename_scalar (scalar s, const char * name)
+{
+  free (s.name);
+  s.name = strdup (name);
+}
+
+static scalar dump_new_face_component (const char * name, int axis)
+{
+  const char * suffix = axis == 0 ? ".x" : axis == 1 ? ".y" : ".z";
+  int len = strlen (name), slen = strlen (suffix);
+  char * base = strdup (name);
+  if (len > slen && !strcmp (name + len - slen, suffix))
+    base[len - slen] = '\0';
+  
+  vector v = new face vector;
+  int d = 0;
+  scalar out = {INT_MAX};
+  foreach_dimension() {
+    char cname[strlen(base) + 3];
+    sprintf (cname, "%s.%c", base, "xyz"[d]);
+    dump_rename_scalar (v.x, cname);
+    if (d == axis)
+      out = v.x;
+    d++;
+  }
+  free (base);
+  return out;
+}
+
+static scalar dump_create_field (DumpField * f)
+{
+  if (f->kind == dump_field_cell) {
+    scalar s = new scalar;
+    dump_rename_scalar (s, f->name);
+    return s;
+  }
+  if (f->kind == dump_field_vertex) {
+    scalar s = new vertex scalar;
+    dump_rename_scalar (s, f->name);
+    return s;
+  }
+  return dump_new_face_component (f->name, f->axis);
+}
+
+static bool dump_compatible_field (DumpField * f, scalar s)
+{
+  if (s.i == INT_MAX)
+    return true;
+  int kind = dump_field_kind (s);
+  return kind == f->kind &&
+    (kind != dump_field_face || dump_field_axis (s) == f->axis);
+}
+
+static scalar dump_restore_scalar (DumpField * f, scalar * slist, bool restore_all)
+{
+  scalar found = {INT_MAX};
+  for (scalar s in slist)
+    if (s.name && !strcmp (s.name, f->name)) {
+      found = s; break;
+    }
+  if (found.i == INT_MAX && restore_all)
+    found = dump_find_scalar (f->name);
+  if (found.i == INT_MAX && restore_all)
+    found = dump_create_field (f);
+  if (!dump_compatible_field (f, found)) {
+    fprintf (ferr, "restore(): error: field '%s' has incompatible location\n",
+	     f->name);
+    exit (1);
+  }
+  return found;
+}
+
+static DumpField * dump_read_header (FILE * fp, int * nfields)
+{
+  if (fread (nfields, sizeof(int), 1, fp) < 1) {
+    fprintf (ferr, "restore(): error: expecting nfields\n");
+    exit (1);
+  }
+  DumpField * fields = *nfields ?
+    (DumpField *) calloc (*nfields, sizeof(DumpField)) : NULL;
+  for (int i = 0; i < *nfields; i++) {
+    unsigned len;
+    if (fread (&len, sizeof(unsigned), 1, fp) < 1) {
+      fprintf (ferr, "restore(): error: expecting len\n");
+      exit (1);
+    }
+    fields[i].name = (char *) malloc (len + 1);
+    if (fread (fields[i].name, sizeof(char), len, fp) < len) {
+      fprintf (ferr, "restore(): error: expecting field name\n");
+      exit (1);
+    }
+    fields[i].name[len] = '\0';
+    if (fread (&fields[i].kind, sizeof(int), 1, fp) < 1 ||
+	fread (&fields[i].axis, sizeof(int), 1, fp) < 1 ||
+	fread (&fields[i].count, sizeof(int), 1, fp) < 1) {
+      fprintf (ferr, "restore(): error: expecting field descriptor\n");
+      exit (1);
+    }
+    if (fields[i].kind < dump_field_cell ||
+	fields[i].kind > dump_field_vertex ||
+	fields[i].count != dump_field_count (fields[i].kind)) {
+      fprintf (ferr, "restore(): error: invalid count for field '%s'\n",
+	       fields[i].name);
+      exit (1);
+    }
+  }
+  return fields;
 }
 
 #if !_MPI
@@ -1096,8 +1397,11 @@ void dump (const char * file = "dump",
   
   scalar * dlist = dump_list (list, zero);
   scalar size[];
+  int nfields;
+  long record_len;
+  DumpField * fields = dump_fields (dlist, &nfields, &record_len);
   scalar * slist = list_concat ({size}, dlist); free (dlist);
-  struct DumpHeader header = { t, list_len(slist), iter, depth(), npe(),
+  struct DumpHeader header = { t, dt, dt_previous, record_len, iter, depth(), npe(),
 			       dump_version };
   int npe = 1;
   foreach_dimension() {
@@ -1105,7 +1409,7 @@ void dump (const char * file = "dump",
     npe *= header.n.x;
   }
   header.npe = npe;
-  dump_header (fp, &header, slist);
+  dump_header (fp, &header, fields, nfields);
   
   subtree_size (size, false);
 #if _GPU
@@ -1119,18 +1423,16 @@ void dump (const char * file = "dump",
       perror ("dump(): error while writing flags");
       exit (1);
     }
-    for (scalar s in slist) {
-      double val = s[];
-      if (fwrite (&val, sizeof(double), 1, fp) < 1) {
-	perror ("dump(): error while writing scalars");
-	exit (1);
-      }
-    }
+    dump_write_double (fp, size[]);
+    for (int i = 0; i < nfields; i++)
+      dump_write_item (point, fp, fields[i].index,
+			fields[i].kind, fields[i].axis);
     if (is_leaf(cell))
       continue;
   }
   
   free (slist);
+  dump_fields_free (fields, nfields);
   if (file) {
     fclose (fp);
     if (!unbuffered)
@@ -1166,8 +1468,11 @@ void dump (const char * file = "dump",
 
   scalar * dlist = dump_list (list, zero);
   scalar size[];
+  int nfields;
+  long record_len;
+  DumpField * fields = dump_fields (dlist, &nfields, &record_len);
   scalar * slist = list_concat ({size}, dlist); free (dlist);
-  struct DumpHeader header = { t, list_len(slist), iter, depth(), npe(),
+  struct DumpHeader header = { t, dt, dt_previous, record_len, iter, depth(), npe(),
 			       dump_version };
   foreach_dimension()
     header.n.x = Dimensions.x;
@@ -1177,7 +1482,7 @@ void dump (const char * file = "dump",
 #endif
 
   if (pid() == 0) {
-    dump_header (fh, &header, slist);
+    dump_header (fh, &header, fields, nfields);
     fflush (fh);
   }
   
@@ -1196,9 +1501,7 @@ void dump (const char * file = "dump",
   index = new scalar;
   z_indexing (index, false);
   long cell_size = sizeof(unsigned) + header.len*sizeof(double);
-  long sizeofheader = sizeof(header) + 4*sizeof(double);
-  for (scalar s in slist)
-    sizeofheader += sizeof(unsigned) + sizeof(char)*strlen(s.name);
+  long sizeofheader = dump_header_size (fields, nfields);
   long pos = pid() ? 0 : sizeofheader;
   
   subtree_size (size, false);
@@ -1213,10 +1516,11 @@ void dump (const char * file = "dump",
       }
       unsigned flags = is_leaf(cell) ? leaf : 0;
       fwrite (&flags, 1, sizeof(unsigned), fh);
-      for (scalar s in slist) {
-	double val = s[];
-	fwrite (&val, 1, sizeof(double), fh);
-      }
+      double val = size[];
+      fwrite (&val, 1, sizeof(double), fh);
+      for (int i = 0; i < nfields; i++)
+	dump_write_item (point, fh, fields[i].index,
+			  fields[i].kind, fields[i].axis);
       pos += cell_size;
     }
     if (is_leaf(cell))
@@ -1226,6 +1530,7 @@ void dump (const char * file = "dump",
   delete ({index});
   
   free (slist);
+  dump_fields_free (fields, nfields);
   fclose (fh);
   if (!unbuffered && pid() == 0)
     rename (name, file);
@@ -1272,70 +1577,44 @@ bool restore (const char * file = "dump",
   init_grid (1 << depth);
 #endif // multigrid
 
+  if (header.version != dump_version) {
+    fprintf (ferr,
+	     "restore(): error: file version mismatch: "
+	     "%d (file) != %d (code)\n",
+	     header.version, dump_version);
+    exit (1);
+  }
+  dt = header.dt;
+  dt_previous = header.dt_previous;
+  
   bool restore_all = (list == all);
   scalar * slist = dump_list (list ? list : all, true);
-  if (header.version == 161020) {
-    if (header.len - 1 != list_len (slist)) {
-      fprintf (ferr,
-	       "restore(): error: the list lengths don't match: "
-	       "%ld (file) != %d (code)\n",
-	       header.len - 1, list_len (slist));
-      exit (1);
-    }
+  int nfields;
+  DumpField * fields = dump_read_header (fp, &nfields);
+  long record_len = 1;
+  scalar * restored = NULL;
+  for (int i = 0; i < nfields; i++) {
+    fields[i].index = dump_restore_scalar (&fields[i], slist, restore_all).i;
+    record_len += fields[i].count;
+    if (fields[i].index != INT_MAX)
+      restored = list_add (restored, (scalar){fields[i].index});
   }
-  else { // header.version != 161020
-    if (header.version != dump_version) {
-      fprintf (ferr,
-	       "restore(): error: file version mismatch: "
-	       "%d (file) != %d (code)\n",
-	       header.version, dump_version);
-      exit (1);
-    }
-    
-    scalar * input = NULL;
-    for (int i = 0; i < header.len; i++) {
-      unsigned len;
-      if (fread (&len, sizeof(unsigned), 1, fp) < 1) {
-	fprintf (ferr, "restore(): error: expecting len\n");
-	exit (1);
-      }
-      char name[len + 1];
-      if (fread (name, sizeof(char), len, fp) < 1) {
-	fprintf (ferr, "restore(): error: expecting s.name\n");
-	exit (1);
-      }
-      name[len] = '\0';
-
-      if (i > 0) { // skip subtree size
-	bool found = false;
-	for (scalar s in slist)
-	  if (!strcmp (s.name, name)) {
-	    input = list_append (input, s);
-	    found = true; break;
-	  }
-	if (!found) {
-	  if (restore_all) {
-	    scalar s = new scalar;
-	    free (s.name);
-	    s.name = strdup (name);
-	    input = list_append (input, s);
-	  }
-	  else
-	    input = list_append (input, (scalar){INT_MAX});
-	}
-      }
-    }
-    free (slist);
-    slist = input;
-
-    double o[4];
-    if (fread (o, sizeof(double), 4, fp) < 4) {
-      fprintf (ferr, "restore(): error: expecting coordinates\n");
-      exit (1);
-    }
-    origin (o[0], o[1], o[2]);
-    size (o[3]);
+  free (slist);
+  if (record_len != header.len) {
+    fprintf (ferr,
+	     "restore(): error: record length mismatch: "
+	     "%ld (descriptors) != %ld (header)\n",
+	     record_len, header.len);
+    exit (1);
   }
+  
+  double o[4];
+  if (fread (o, sizeof(double), 4, fp) < 4) {
+    fprintf (ferr, "restore(): error: expecting coordinates\n");
+    exit (1);
+  }
+  origin (o[0], o[1], o[2]);
+  size (o[3]);
 
 #if MULTIGRID_MPI
   long cell_size = sizeof(unsigned) + header.len*sizeof(double);
@@ -1349,7 +1628,7 @@ bool restore (const char * file = "dump",
   
   scalar * listm = is_constant(cm) ? NULL : (scalar *){fm};
 #if TREE && _MPI
-  restore_mpi (fp, slist);
+  restore_mpi (fp, fields, nfields, header.len);
 #else // ! (TREE && _MPI)
 #if !_MPI
   int rootlevel = 0;
@@ -1373,22 +1652,16 @@ bool restore (const char * file = "dump",
     }
     // skip subtree size
     fseek (fp, sizeof(double), SEEK_CUR);
-    for (scalar s in slist) {
-      double val;
-      if (fread (&val, sizeof(double), 1, fp) != 1) {
-	fprintf (ferr, "restore(): error: expecting a scalar\n");
-	exit (1);
-      }
-      if (s.i != INT_MAX)
-	s[] = isfinite(val) ? val : nodata;
-    }
+    for (int i = 0; i < nfields; i++)
+      dump_read_item (point, fp, fields[i].index, fields[i].kind,
+		       fields[i].axis, fields[i].count);
     if (!(flags & leaf) && is_leaf(cell))
       refine_cell (point, listm, 0, NULL);
     if (is_leaf(cell))
       continue;
   }
 #if _GPU
-  for (scalar s in slist)
+  for (scalar s in restored)
     if (s.i != INT_MAX)
       s.gpu.stored = 1; // stored on CPU
 #endif // _GPU
@@ -1398,12 +1671,13 @@ bool restore (const char * file = "dump",
   
   scalar * other = NULL;
   for (scalar s in all)
-    if (!list_lookup (slist, s) && !list_lookup (listm, s))
+    if (!list_lookup (restored, s) && !list_lookup (listm, s))
       other = list_append (other, s);
   reset (other, 0.);
   free (other);
   
-  free (slist);
+  free (restored);
+  dump_fields_free (fields, nfields);
   if (file)
     fclose (fp);
 

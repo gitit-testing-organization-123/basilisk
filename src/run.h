@@ -6,8 +6,6 @@ executes events until termination.
 
 The timestep `dt` can be accessed as a global variable. */
 
-double dt = 1.;
-
 #include "utils.h"
 
 trace

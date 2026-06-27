@@ -19,7 +19,7 @@ struct _Event {
 static Event * Events = NULL; // all events
 
 int iter = 0, inext = 0; // current step and step of next event
-double t = 0, tnext = 0; // current time and time of next event
+double t = 0, tnext = 0, dt = 1.; // current time and time of next event
 void init_events (void);
 void event_register (Event event);
 static void _init_solver (void);

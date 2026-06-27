@@ -1,8 +1,9 @@
+double dt_previous = 0.;
+
 // note: u is weighted by fm
 double timestep (const face vector u, double dtmax)
-{
-  static double previous = 0.;
-  if (t == 0.) previous = 0.;
+{ 
+  if (t == 0.) dt_previous = 0.;
   dtmax /= CFL;
   foreach_face(reduction(min:dtmax))
     if (u.x[] != 0.) {
@@ -12,8 +13,8 @@ double timestep (const face vector u, double dtmax)
       if (dt < dtmax) dtmax = dt;
     }
   dtmax *= CFL;
-  if (dtmax > previous)
-    dtmax = (previous + 0.1*dtmax)/1.1;
-  previous = dtmax;
+  if (dtmax > dt_previous)
+    dtmax = (dt_previous + 0.1*dtmax)/1.1;
+  dt_previous = dtmax;
   return dtmax;
 }
