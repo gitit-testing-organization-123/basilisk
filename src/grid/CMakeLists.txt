@@ -100,23 +100,18 @@ if (BASILISK_USE_HIP)
   find_package(hip REQUIRED CONFIG)
   find_package(hiprtc REQUIRED CONFIG)
 
-  add_library(basilisk_hip STATIC
+  add_library(hipamd STATIC
     hip/hip.c
   )
 
-  add_library(basilisk::hip ALIAS basilisk_hip)
+  add_library(basilisk::hipamd ALIAS hipamd)
 
-  set_target_properties(basilisk_hip PROPERTIES
-    EXPORT_NAME hip
-    OUTPUT_NAME hip
-  )
-
-  target_compile_definitions(basilisk_hip PRIVATE
+  target_compile_definitions(hipamd PRIVATE
     SINGLE_PRECISION
     __HIP_PLATFORM_AMD__
   )
 
-  target_include_directories(basilisk_hip
+  target_include_directories(hipamd
     PUBLIC
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
@@ -124,7 +119,7 @@ if (BASILISK_USE_HIP)
       $<INSTALL_INTERFACE:include/basilisk/grid>
   )
 
-  target_link_libraries(basilisk_hip
+  target_link_libraries(hipamd
     PUBLIC
       basilisk::errors
       hip::host
@@ -132,7 +127,7 @@ if (BASILISK_USE_HIP)
       m
   )
 
-  install(TARGETS basilisk_hip
+  install(TARGETS hipamd
     EXPORT basiliskTargets
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT gpu-hip
     ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT gpu-hip
