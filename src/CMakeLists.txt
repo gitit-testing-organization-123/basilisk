@@ -176,7 +176,7 @@ target_link_libraries(bview3D PRIVATE
 
 add_executable(basilisk::bview3D ALIAS bview3D)
 
-# --- bview2Dm --------------------------------------------------
+# bview2Dm 
 
 set(BVIEW2DM_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/bview2Dm_gen")
 file(MAKE_DIRECTORY "${BVIEW2DM_GEN_DIR}")
@@ -217,3 +217,9 @@ target_link_libraries(bview2Dm PRIVATE
 )
 
 add_executable(basilisk::bview2Dm ALIAS bview2Dm)
+
+# --- tests ------------------------------------------------------------------
+
+if(BASILISK_USE_TEST AND BUILD_TESTING)
+  add_subdirectory(test)
+endif()
