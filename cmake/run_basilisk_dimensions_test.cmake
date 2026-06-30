@@ -18,6 +18,7 @@ foreach(default_var IN ITEMS
     TEST_STAGE_FILES
     TEST_INCLUDES
     TEST_QCC_FLAGS
+    TEST_BASILISK_LINKDIR
     TEST_OPENGLIBS)
   if(NOT DEFINED ${default_var})
     set(${default_var} "")
@@ -131,6 +132,7 @@ endforeach()
 set(test_env
   "BASILISK=${TEST_BASILISK_SOURCE_DIR}/src"
   "BASILISK_LIBDIR=${TEST_BASILISK_SOURCE_DIR}/src"
+  "BASILISK_LINKDIR=${TEST_BASILISK_LINKDIR}"
   "OPENGLIBS=${TEST_OPENGLIBS}"
 )
 

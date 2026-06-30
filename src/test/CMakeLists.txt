@@ -3,6 +3,12 @@ include(${PROJECT_SOURCE_DIR}/cmake/basilisk_add_executable.cmake)
 set(BASILISK_TEST_TIMEOUT 600 CACHE STRING "Default timeout, in seconds, for each Basilisk CTest test")
 set(BASILISK_TEST_RUNNER "${PROJECT_SOURCE_DIR}/cmake/run_basilisk_executable_test.cmake")
 set(BASILISK_DIMENSIONS_TEST_RUNNER "${PROJECT_SOURCE_DIR}/cmake/run_basilisk_dimensions_test.cmake")
+set(BASILISK_TEST_OPENGLIBS
+  "-lfb_tiny -L$<TARGET_FILE_DIR:tinyrenderer> -ltinyrenderer"
+  CACHE STRING "OpenGL libraries used by qcc autolink while running Basilisk CTest tests")
+set(BASILISK_TEST_LINKDIR
+  "$<TARGET_FILE_DIR:glutils>"
+  CACHE STRING "Link directory used by qcc autolink while running Basilisk CTest tests")
 set(BASILISK_TEST_DEFAULT_DEFINES MTRACE=3)
 set(BASILISK_VIEW_LIBS fb_tiny)
 
@@ -163,6 +169,7 @@ function(basilisk_add_ctest_dimensions NAME)
   set(one_value_args SOURCE REF TIMEOUT)
   set(multi_value_args
     DEFINES
+    FILES
     INCLUDES
     LABELS
     QCC_FLAGS
@@ -197,6 +204,7 @@ function(basilisk_add_ctest_dimensions NAME)
   set(test_work_dir "${CMAKE_CURRENT_BINARY_DIR}/${test_name}")
 
   string(REPLACE ";" "|" test_defines_arg "${BCD_DEFINES}")
+  string(REPLACE ";" "|" test_stage_files_arg "${BCD_FILES}")
   string(REPLACE ";" "|" test_includes_arg "${BCD_INCLUDES}")
   string(REPLACE ";" "|" test_qcc_flags_arg "${BCD_QCC_FLAGS}")
 
@@ -213,8 +221,11 @@ function(basilisk_add_ctest_dimensions NAME)
       "-DTEST_REF_FILE=${ref_file}"
       "-DTEST_TIMEOUT=${test_timeout}"
       "-DTEST_DEFINES=${test_defines_arg}"
+      "-DTEST_STAGE_FILES=${test_stage_files_arg}"
       "-DTEST_INCLUDES=${test_includes_arg}"
       "-DTEST_QCC_FLAGS=${test_qcc_flags_arg}"
+      "-DTEST_BASILISK_LINKDIR=${BASILISK_TEST_LINKDIR}"
+      "-DTEST_OPENGLIBS=${BASILISK_TEST_OPENGLIBS}"
       -P "${BASILISK_DIMENSIONS_TEST_RUNNER}"
   )
 
@@ -475,7 +486,7 @@ basilisk_add_ctest(capwave-clsvof SOURCE capwave.c REF capwave-clsvof.ref DEFINE
 
 # Dimensions-only checks from the legacy Makefile.
 basilisk_add_ctest_dimensions(bump2D LABELS short)
-basilisk_add_ctest_dimensions(capwave LABELS short)
+basilisk_add_ctest_dimensions(capwave FILES prosperetti.h LABELS short)
 basilisk_add_ctest_dimensions(lid LABELS short)
 basilisk_add_ctest_dimensions(rising-axi SOURCE rising.c DEFINES AXIS=1 LABELS short)
 basilisk_add_ctest_dimensions(rising-reduced SOURCE rising.c DEFINES REDUCED=1 LABELS short)
@@ -487,8 +498,8 @@ basilisk_add_ctest_dimensions(wind-driven-stvt SOURCE wind-driven.c LABELS short
 basilisk_add_ctest_dimensions(shock LABELS short)
 basilisk_add_ctest_dimensions(starting LABELS short)
 basilisk_add_ctest_dimensions(layered LABELS short)
-basilisk_add_ctest_dimensions(stokes LABELS short)
-basilisk_add_ctest_dimensions(stokes-ns LABELS short)
+basilisk_add_ctest_dimensions(stokes FILES stokes.h LABELS short)
+basilisk_add_ctest_dimensions(stokes-ns FILES stokes.h LABELS short)
 basilisk_add_ctest_dimensions(lonlat LABELS short)
 basilisk_add_ctest_dimensions(overflow LABELS short)
 basilisk_add_ctest_dimensions(bleck LABELS short)
