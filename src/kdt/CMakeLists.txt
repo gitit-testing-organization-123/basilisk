@@ -6,8 +6,13 @@ if (BASILISK_USE_KDT)
   add_library(basilisk::kdt ALIAS kdt)
 
   target_compile_definitions(kdt
-    PRIVATE
+    PUBLIC
+      _GNU_SOURCE=1
       _FILE_OFFSET_BITS=64
+  )
+  target_compile_options(kdt
+    PRIVATE
+      -UNDEBUG
   )
 
   target_include_directories(kdt
@@ -24,6 +29,10 @@ if (BASILISK_USE_KDT)
   add_executable(xyz2kdt
     xyz2kdt.c
   )
+  target_compile_options(xyz2kdt
+    PRIVATE
+      -UNDEBUG
+  )
 
   target_link_libraries(xyz2kdt
     PRIVATE
@@ -33,6 +42,10 @@ if (BASILISK_USE_KDT)
 
   add_executable(kdtquery
     kdtquery.c
+  )
+  target_compile_options(kdtquery
+    PRIVATE
+      -UNDEBUG
   )
 
   target_link_libraries(kdtquery

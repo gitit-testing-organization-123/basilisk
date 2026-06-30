@@ -2,6 +2,7 @@
 #include "output.h"
 #include "refine_unbalanced.h"
 #include "check_restriction.h"
+#include <string.h>
 
 #define BGHOSTS 2
 
@@ -44,7 +45,7 @@ void partition (const char * prog)
   mpi_partitioning();
   set_unused_pids();
 
-  char name[80];
+  char name[1024];
   sprintf (name, "ref-%d", pid());
   FILE * fp = fopen (name, "w");
   debug_mpi (fp);
@@ -52,7 +53,9 @@ void partition (const char * prog)
 
   MPI_Barrier (MPI_COMM_WORLD);
   if (pid() == 0) {
-    sprintf (name, "cat ref-* > ref && cp -f ref %s.ref", prog);
+    const char * base = strrchr (prog, '/');
+    base = base ? base + 1 : prog;
+    snprintf (name, sizeof(name), "cat ref-* > ref && cp -f ref %s.ref", base);
     system (name);
   }
 }
