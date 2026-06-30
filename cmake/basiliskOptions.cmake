@@ -6,7 +6,7 @@ option(BASILISK_USE_CUDA "Build the CUDA GPU backend" OFF)
 option(BASILISK_USE_GLSL "Build the OpenGL/GLSL GPU backend" OFF)
 option(BASILISK_USE_HIP "Build the HIP GPU backend" OFF)
 
-option(BASILISK_USE_TEST "Create basilisk test suite" ON)
+option(BASILISK_USE_TEST "Create basilisk test suite" OFF)
 option(BASILISK_ENABLE_MPI_TESTS "Enable MPI-backed Basilisk CTest tests" ON)
 option(BASILISK_ENABLE_OPENMMP_TESTS "Enable OpenMP-backed Basilisk CTest tests" ON)
 option(BASILISK_ENABLE_GLSL_TESTS "Enable GLSL/OpenGL-backed Basilisk CTest tests" OFF)
