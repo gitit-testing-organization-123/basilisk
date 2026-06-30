@@ -71,10 +71,10 @@ jobs:
             swig
 
       - name: Configure default preset
-        run: cmake --preset Default
+        run: cmake --preset "Test (Release)"
 
       - name: Build default preset
-        run: cmake --build --preset Default
+        run: cmake --build --preset "Test (Release)"
 
       - name: Run CTest
         env:
