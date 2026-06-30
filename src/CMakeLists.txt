@@ -1,10 +1,10 @@
-foreach(var CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
-            CMAKE_C_FLAGS_RELWITHDEBINFO CMAKE_C_FLAGS_MINSIZEREL)
-  if(DEFINED ${var})
-    string(REGEX REPLACE "(^|[ \t])-DNDEBUG([ \t]|$)" " " ${var} "${${var}}")
-    string(STRIP "${${var}}" ${var})
-  endif()
-endforeach()
+# foreach(var CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
+#             CMAKE_C_FLAGS_RELWITHDEBINFO CMAKE_C_FLAGS_MINSIZEREL)
+#   if(DEFINED ${var})
+#     string(REGEX REPLACE "(^|[ \t])-DNDEBUG([ \t]|$)" " " ${var} "${${var}}")
+#     string(STRIP "${${var}}" ${var})
+#   endif()
+# endforeach()
 
 # --- grammar --------------------------------------------------------
 
