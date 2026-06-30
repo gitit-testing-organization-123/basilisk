@@ -232,13 +232,13 @@ if(TEST_REF_FILE AND EXISTS "${TEST_REF_FILE}")
     "${compare_log}"
   )
   string(REGEX REPLACE
-    "sh: (line 1: )?ppm2[a-z0-9]+: command not found\n+"
+    "sh: ((line )?[0-9]+: )?ppm2[a-z0-9]+: command not found\n+"
     ""
     compare_log
     "${compare_log}"
   )
   string(REGEX REPLACE
-    "sh: (line 1: )?gfsview-batch[23]D: command not found\n+"
+    "sh: ((line )?[0-9]+: )?gfsview-batch[23]D: command not found\n+"
     ""
     compare_log
     "${compare_log}"
