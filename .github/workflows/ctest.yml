@@ -74,7 +74,7 @@ jobs:
         run: cmake --preset "Test (Release)"
 
       - name: Build default preset
-        run: cmake --build --preset "Test (Release)"
+        run: cmake --build build/release --parallel
 
       - name: Run CTest
         env:
