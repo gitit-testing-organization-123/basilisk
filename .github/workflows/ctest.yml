@@ -1,0 +1,92 @@
+name: CTest
+
+on:
+  workflow_dispatch:
+    inputs:
+      ctest_label:
+        description: "Optional CTest label regex, for example: short"
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  ctest-default:
+    name: Run CTest suite (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x64
+            os: ubuntu-latest
+          - name: macOS Intel
+            os: macos-13
+          - name: macOS ARM
+            os: macos-14-arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Ubuntu dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bison \
+            build-essential \
+            cmake \
+            ffmpeg \
+            flex \
+            gawk \
+            gfortran \
+            gifsicle \
+            gnuplot-nox \
+            imagemagick \
+            libopenmpi-dev \
+            ninja-build \
+            openmpi-bin \
+            pkg-config \
+            python3 \
+            python3-dev \
+            swig
+
+      - name: Install macOS dependencies
+        if: runner.os == 'macOS'
+        run: |
+          brew install \
+            bison \
+            cmake \
+            ffmpeg \
+            flex \
+            gawk \
+            gcc \
+            gifsicle \
+            gnuplot \
+            imagemagick \
+            ninja \
+            open-mpi \
+            pkg-config \
+            swig
+
+      - name: Configure default preset
+        run: cmake --preset Default
+
+      - name: Build default preset
+        run: cmake --build --preset Default
+
+      - name: Run CTest
+        env:
+          CTEST_LABEL: ${{ inputs.ctest_label }}
+        run: |
+          set -euo pipefail
+          if command -v nproc >/dev/null 2>&1; then
+            jobs="$(nproc)"
+          else
+            jobs="$(sysctl -n hw.logicalcpu)"
+          fi
+          ctest_args=(--test-dir build/release --output-on-failure --parallel "${jobs}")
+          if [[ -n "${CTEST_LABEL}" ]]; then
+            ctest_args+=(-L "${CTEST_LABEL}")
+          fi
+          ctest "${ctest_args[@]}"

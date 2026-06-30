@@ -1,0 +1,76 @@
+name: Build
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+      - relocatable-install
+  workflow_dispatch:
+
+jobs:
+  build-default:
+    name: Build default options (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x64
+            os: ubuntu-latest
+          - name: macOS Intel
+            os: macos-13
+          - name: macOS ARM
+            os: macos-14-arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Ubuntu dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bison \
+            build-essential \
+            cmake \
+            ffmpeg \
+            flex \
+            gawk \
+            gfortran \
+            gifsicle \
+            gnuplot-nox \
+            imagemagick \
+            libopenmpi-dev \
+            ninja-build \
+            openmpi-bin \
+            pkg-config \
+            python3 \
+            python3-dev \
+            swig
+
+      - name: Install macOS dependencies
+        if: runner.os == 'macOS'
+        run: |
+          brew install \
+            bison \
+            cmake \
+            ffmpeg \
+            flex \
+            gawk \
+            gcc \
+            gifsicle \
+            gnuplot \
+            imagemagick \
+            ninja \
+            open-mpi \
+            pkg-config \
+            swig
+
+      - name: Configure default preset
+        run: cmake --preset Default
+
+      - name: Build default preset
+        run: cmake --build --preset Default
