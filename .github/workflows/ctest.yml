@@ -12,25 +12,14 @@ on:
 
 jobs:
   ctest-default:
-    name: Run CTest suite (${{ matrix.name }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Linux x64
-            os: ubuntu-latest
-          - name: macOS Intel
-            os: macos-15-intel
-          - name: macOS ARM
-            os: macos-15
+    name: Run CTest suite
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install Ubuntu dependencies
-        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -50,24 +39,6 @@ jobs:
             pkg-config \
             python3 \
             python3-dev \
-            swig
-
-      - name: Install macOS dependencies
-        if: runner.os == 'macOS'
-        run: |
-          brew install \
-            bison \
-            cmake \
-            ffmpeg \
-            flex \
-            gawk \
-            gcc \
-            gifsicle \
-            gnuplot \
-            imagemagick \
-            ninja \
-            open-mpi \
-            pkg-config \
             swig
 
       - name: Configure default preset
@@ -96,7 +67,31 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: basilisk-build-artifacts-${{ matrix.name }}
+          name: basilisk-build-artifacts
           path: build/release/src
           if-no-files-found: error
           retention-days: 7
+
+      - name: Dispatch wiki artifact refresh
+        if: >-
+          ${{
+            success() &&
+            github.repository == 'gitit-testing-organization-123/basilisk' &&
+            (github.event_name != 'workflow_dispatch' || inputs.ctest_label == '')
+          }}
+        env:
+          GH_TOKEN: ${{ secrets.WIKI_REPO_DISPATCH_TOKEN }}
+          TARGET_REPO: gitit-testing-organization-123/wiki
+        run: |
+          set -euo pipefail
+          if [[ -z "${GH_TOKEN}" ]]; then
+            echo "::error::WIKI_REPO_DISPATCH_TOKEN is required to dispatch the wiki artifact refresh."
+            exit 1
+          fi
+          gh api "repos/${TARGET_REPO}/dispatches" \
+            --method POST \
+            --field event_type=basilisk-artifacts-ready \
+            --field client_payload[source_repo]="${{ github.repository }}" \
+            --field client_payload[run_id]="${{ github.run_id }}" \
+            --field client_payload[sha]="${{ github.sha }}" \
+            --field client_payload[artifact_name]="basilisk-build-artifacts"

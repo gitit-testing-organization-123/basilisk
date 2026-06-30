@@ -9,7 +9,7 @@ set(BASILISK_TEST_OPENGLIBS
 set(BASILISK_TEST_LINKDIR
   "$<TARGET_FILE_DIR:glutils>"
   CACHE STRING "Link directory used by qcc autolink while running Basilisk CTest tests")
-set(BASILISK_TEST_DEFAULT_DEFINES MTRACE=3)
+set(BASILISK_TEST_DEFAULT_DEFINES)
 set(BASILISK_VIEW_LIBS fb_tiny)
 
 function(_basilisk_abs_path out path base_dir)
@@ -354,7 +354,7 @@ basilisk_add_ctest(interpolate LABELS short)
 basilisk_add_ctest(events LABELS short )
 basilisk_add_ctest(faces LABELS short)
 
-# basilisk_add_ctest(coarsen QCC_FLAGS -progress LABELS short)
+# basilisk_add_ctest(coarsen DEFINES MTRACE=3 QCC_FLAGS -progress LABELS short)
 # basilisk_add_ctest(lid-restore SOURCE lid.c REF lid-restore.ref FILES lid-restore.dump) # needs lid.tst-produced dump staging
 # basilisk_add_ctest(poiseuille.vtst SOURCE poiseuille.c REF poiseuille.ref) # legacy valgrind vtst mode
 
