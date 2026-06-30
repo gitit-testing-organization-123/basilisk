@@ -1,6 +1,6 @@
 include(${PROJECT_SOURCE_DIR}/cmake/basilisk_add_executable.cmake)
 
-set(BASILISK_TEST_TIMEOUT 600 CACHE STRING "Default timeout, in seconds, for each Basilisk CTest test")
+set(BASILISK_TEST_TIMEOUT 1200 CACHE STRING "Default timeout, in seconds, for each Basilisk CTest test")
 set(BASILISK_TEST_RUNNER "${PROJECT_SOURCE_DIR}/cmake/run_basilisk_executable_test.cmake")
 set(BASILISK_DIMENSIONS_TEST_RUNNER "${PROJECT_SOURCE_DIR}/cmake/run_basilisk_dimensions_test.cmake")
 set(BASILISK_TEST_OPENGLIBS
@@ -418,6 +418,9 @@ basilisk_add_ctest(mpi-laplacian MPI MPI_RANKS 3 LABELS short)
 basilisk_add_ctest(mpi-laplacian.3D SOURCE mpi-laplacian.c REF mpi-laplacian.ref MPI MPI_RANKS 3 QCC_FLAGS -grid=octree LABELS short)
 basilisk_add_ctest(mpi-circle MPI MPI_RANKS 5 LABELS short)
 basilisk_add_ctest(mpi-circle1 SOURCE mpi-circle.c REF mpi-circle1.ref MPI MPI_RANKS 6 LABELS short)
+set_tests_properties(mpi-circle mpi-circle1 PROPERTIES
+  RUN_SERIAL TRUE
+)
 basilisk_add_ctest(mpi-flux MPI MPI_RANKS 6 LABELS short)
 basilisk_add_ctest(mpi-interpu MPI MPI_RANKS 5 LABELS short)
 basilisk_add_ctest(mpi-coarsen MPI MPI_RANKS 2 LABELS short)

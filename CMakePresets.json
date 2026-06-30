@@ -57,6 +57,14 @@
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/install/debug"
       }
+    }, {
+      "name": "Test (Release)",
+      "displayName": "Test (Release)",
+      "description": "Build with debug info and no optimization.",
+      "inherits": "Default",
+      "cacheVariables": {
+        "BASILISK_USE_TEST": "On"
+      }
     }
   ],
   "buildPresets": [

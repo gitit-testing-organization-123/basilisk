@@ -175,7 +175,7 @@ if(TEST_REF_FILE AND EXISTS "${TEST_REF_FILE}")
 
   file(READ "${compare_input}" compare_log)
   string(REGEX REPLACE
-    "WARNING: The convert command is deprecated in IMv7, use \"magick\" instead of \"convert\" or \"magick convert\"\n+"
+    "WARNING: The convert command is deprecated in IMv7, use \"magick\" instead of \"convert\" or \"magick convert\"\n\n"
     ""
     compare_log
     "${compare_log}"
