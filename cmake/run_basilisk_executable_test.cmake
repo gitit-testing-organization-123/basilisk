@@ -14,6 +14,8 @@ foreach(default_var IN ITEMS
     TEST_EXECUTOR
     TEST_MPI_RANKS
     TEST_STAGE_FILES
+    TEST_STAGE_TEST_FILES
+    TEST_BINARY_TEST_DIR
     TEST_EXTRA_PATH)
   if(NOT DEFINED ${default_var})
     set(${default_var} "")
@@ -25,6 +27,7 @@ if(NOT TEST_TIMEOUT)
 endif()
 
 string(REPLACE "|" ";" TEST_STAGE_FILES "${TEST_STAGE_FILES}")
+string(REPLACE "|" ";" TEST_STAGE_TEST_FILES "${TEST_STAGE_TEST_FILES}")
 string(REPLACE "|" ";" TEST_EXECUTOR "${TEST_EXECUTOR}")
 string(REPLACE "|" ";" TEST_EXTRA_PATH "${TEST_EXTRA_PATH}")
 
@@ -39,8 +42,11 @@ function(_basilisk_dump_file label path)
 endfunction()
 
 function(_basilisk_stage_link source destination)
-  if(EXISTS "${destination}" OR IS_SYMLINK "${destination}")
+  if(IS_SYMLINK "${destination}")
     return()
+  endif()
+  if(EXISTS "${destination}")
+    file(REMOVE "${destination}")
   endif()
 
   execute_process(
@@ -48,7 +54,13 @@ function(_basilisk_stage_link source destination)
     RESULT_VARIABLE link_result
   )
   if(NOT link_result EQUAL 0)
-    file(COPY "${source}" DESTINATION "${TEST_WORK_DIR}")
+    execute_process(
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${source}" "${destination}"
+      RESULT_VARIABLE copy_result
+    )
+    if(NOT copy_result EQUAL 0)
+      message(FATAL_ERROR "could not stage '${source}' as '${destination}'")
+    endif()
   endif()
 endfunction()
 
@@ -79,6 +91,31 @@ foreach(stage_file IN LISTS TEST_STAGE_FILES)
   endif()
 
   get_filename_component(stage_name "${stage_file}" NAME)
+  _basilisk_stage_link("${stage_file}" "${TEST_WORK_DIR}/${stage_name}")
+endforeach()
+
+foreach(stage_mapping IN LISTS TEST_STAGE_TEST_FILES)
+  string(REGEX MATCH "^([^:]+):([^=]+)(=(.+))?$" matched "${stage_mapping}")
+  if(NOT matched)
+    message(FATAL_ERROR
+      "${TEST_NAME}: invalid FILES_FROM_TEST mapping '${stage_mapping}'; "
+      "expected producer:path or producer:path=dest")
+  endif()
+
+  set(producer_test "${CMAKE_MATCH_1}")
+  set(producer_path "${CMAKE_MATCH_2}")
+  set(stage_name "${CMAKE_MATCH_4}")
+  if(NOT stage_name)
+    get_filename_component(stage_name "${producer_path}" NAME)
+  endif()
+
+  set(stage_file "${TEST_BINARY_TEST_DIR}/${producer_test}/${producer_path}")
+  if(NOT EXISTS "${stage_file}")
+    message(FATAL_ERROR
+      "${TEST_NAME}: missing producer artifact '${stage_file}' "
+      "from test '${producer_test}'")
+  endif()
+
   _basilisk_stage_link("${stage_file}" "${TEST_WORK_DIR}/${stage_name}")
 endforeach()
 
@@ -156,12 +193,18 @@ if(TEST_REF_FILE AND EXISTS "${TEST_REF_FILE}")
     "${compare_log}"
   )
   string(REGEX REPLACE
+    "sh: (line 1: )?gfsview-batch[23]D: command not found\n+"
+    ""
+    compare_log
+    "${compare_log}"
+  )
+  string(REGEX REPLACE
     "([A-Za-z0-9_.+-]+)\\.qcc\\.c:"
     "\\1.c:"
     compare_log
     "${compare_log}"
   )
-  if(NOT compare_log MATCHES "\n$")
+  if(compare_log AND NOT compare_log MATCHES "\n$")
     string(APPEND compare_log "\n")
   endif()
   file(WRITE "${compare_stderr}" "${compare_log}")
