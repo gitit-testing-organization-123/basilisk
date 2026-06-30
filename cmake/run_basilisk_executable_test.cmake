@@ -11,6 +11,7 @@ endforeach()
 foreach(default_var IN ITEMS
     TEST_REF_FILE
     TEST_TIMEOUT
+    TEST_ALIASES
     TEST_EXECUTOR
     TEST_MPI_RANKS
     TEST_STAGE_FILES
@@ -28,6 +29,7 @@ endif()
 
 string(REPLACE "|" ";" TEST_STAGE_FILES "${TEST_STAGE_FILES}")
 string(REPLACE "|" ";" TEST_STAGE_TEST_FILES "${TEST_STAGE_TEST_FILES}")
+string(REPLACE "|" ";" TEST_ALIASES "${TEST_ALIASES}")
 string(REPLACE "|" ";" TEST_EXECUTOR "${TEST_EXECUTOR}")
 string(REPLACE "|" ";" TEST_EXTRA_PATH "${TEST_EXTRA_PATH}")
 
@@ -61,6 +63,25 @@ function(_basilisk_stage_link source destination)
     if(NOT copy_result EQUAL 0)
       message(FATAL_ERROR "could not stage '${source}' as '${destination}'")
     endif()
+  endif()
+endfunction()
+
+function(_basilisk_stage_alias source destination)
+  if(IS_DIRECTORY "${destination}" AND NOT IS_SYMLINK "${destination}")
+    message(WARNING "skipping alias '${destination}': destination is a directory")
+    return()
+  endif()
+
+  if(EXISTS "${destination}" OR IS_SYMLINK "${destination}")
+    file(REMOVE "${destination}")
+  endif()
+
+  execute_process(
+    COMMAND "${CMAKE_COMMAND}" -E create_symlink "${source}" "${destination}"
+    RESULT_VARIABLE link_result
+  )
+  if(NOT link_result EQUAL 0)
+    message(WARNING "could not create alias '${destination}' -> '${source}'")
   endif()
 endfunction()
 
@@ -117,6 +138,30 @@ foreach(stage_mapping IN LISTS TEST_STAGE_TEST_FILES)
   endif()
 
   _basilisk_stage_link("${stage_file}" "${TEST_WORK_DIR}/${stage_name}")
+endforeach()
+
+foreach(alias_mapping IN LISTS TEST_ALIASES)
+  string(REGEX MATCH "^([^:]+):([^=]+)=(.+)$" matched "${alias_mapping}")
+  if(NOT matched)
+    message(WARNING
+      "${TEST_NAME}: invalid ALIASES mapping '${alias_mapping}'; "
+      "expected producer:path=alias")
+    continue()
+  endif()
+
+  set(producer_test "${CMAKE_MATCH_1}")
+  set(producer_path "${CMAKE_MATCH_2}")
+  set(alias_name "${CMAKE_MATCH_3}")
+
+  if(IS_ABSOLUTE "${alias_name}")
+    set(alias_file "${alias_name}")
+  else()
+    set(alias_file "${TEST_WORK_DIR}/${alias_name}")
+  endif()
+
+  _basilisk_stage_alias(
+    "${TEST_BINARY_TEST_DIR}/${producer_test}/${producer_path}"
+    "${alias_file}")
 endforeach()
 
 set(run_stdout "${TEST_WORK_DIR}/out")

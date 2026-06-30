@@ -103,7 +103,6 @@ function(_add_basilisk_executable)
             "${source_abs}" "${copied_c}"
     COMMAND $<TARGET_FILE:basilisk::qcc>
             ${qcc_include_flags}
-            -DTRACE=2
             ${qcc_define_flags}
             ${BAE_QCC_FLAGS}
             -source

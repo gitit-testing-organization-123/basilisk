@@ -25,6 +25,7 @@ function(basilisk_add_ctest NAME)
   set(options MPI OPENMP)
   set(one_value_args SOURCE REF TIMEOUT MPI_RANKS)
   set(multi_value_args
+    ALIASES
     DEFINES
     DEPENDS
     EXECUTOR
@@ -107,6 +108,7 @@ function(basilisk_add_ctest NAME)
   endif()
 
   string(REPLACE ";" "|" test_executor_arg "${test_executor}")
+  string(REPLACE ";" "|" aliases_arg "${BCT_ALIASES}")
   string(REPLACE ";" "|" stage_files_arg "${BCT_FILES}")
   string(REPLACE ";" "|" stage_test_files_arg "${BCT_FILES_FROM_TEST}")
   set(test_helper_paths
@@ -126,6 +128,7 @@ function(basilisk_add_ctest NAME)
       "-DTEST_TIMEOUT=${test_timeout}"
       "-DTEST_EXECUTOR=${test_executor_arg}"
       "-DTEST_MPI_RANKS=${BCT_MPI_RANKS}"
+      "-DTEST_ALIASES=${aliases_arg}"
       "-DTEST_STAGE_FILES=${stage_files_arg}"
       "-DTEST_STAGE_TEST_FILES=${stage_test_files_arg}"
       "-DTEST_EXTRA_PATH=${test_helper_paths_arg}"
@@ -256,7 +259,8 @@ basilisk_add_ctest(boundaries LABELS short)
 basilisk_add_ctest(boundaries2 LABELS short)
 basilisk_add_ctest(bubble LABELS short)
 basilisk_add_ctest(bump1 LABELS short)
-basilisk_add_ctest(bump2D1 LABELS short)
+basilisk_add_ctest(bump2D LABELS short)
+basilisk_add_ctest(bump2D1 ALIASES bump2D:plot.png=plot.png bump2D:level.png=level.png LABELS short)
 basilisk_add_ctest(bump2Dc LABELS short)
 basilisk_add_ctest(circle LABELS short)
 basilisk_add_ctest(circle-variable LABELS short)
@@ -279,7 +283,7 @@ basilisk_add_ctest(gpu-boundary LABELS short)
 basilisk_add_ctest(gpu-reduce LABELS short)
 basilisk_add_ctest(gravity LABELS short)
 basilisk_add_ctest(harmonic LABELS short)
-basilisk_add_ctest(higuera LABELS short)
+basilisk_add_ctest(higuera FILES higuera/higuera.png LABELS short)
 basilisk_add_ctest(hump LABELS short)
 basilisk_add_ctest(hydrostatic LABELS short)
 basilisk_add_ctest(hydrostatic1 LABELS short)
@@ -290,6 +294,7 @@ basilisk_add_ctest(kuramoto LABELS short)
 basilisk_add_ctest(layers LABELS short)
 basilisk_add_ctest(lid-oldroydb LABELS short)
 basilisk_add_ctest(lists LABELS short)
+basilisk_add_ctest(lonlat LABELS short)
 basilisk_add_ctest(macro LABELS short)
 basilisk_add_ctest(marangoni LIBS ${BASILISK_VIEW_LIBS} LABELS short)
 basilisk_add_ctest(mask LABELS short)
@@ -318,7 +323,8 @@ basilisk_add_ctest(runge-kutta LABELS short)
 basilisk_add_ctest(sag LABELS short)
 basilisk_add_ctest(segment LABELS short)
 basilisk_add_ctest(sessile3D LIBS ${BASILISK_VIEW_LIBS} LABELS short)
-basilisk_add_ctest(shockwave QCC_FLAGS -grid=bitree LABELS short)
+basilisk_add_ctest(shock LABELS short)
+basilisk_add_ctest(shockwave QCC_FLAGS -grid=bitree ALIASES shockwave.ctst:out=cout shockwave.ctst:log=clog LABELS short)
 basilisk_add_ctest(shockwave.ctst SOURCE shockwave.c REF shockwave.cref QCC_FLAGS -grid=multigrid1D LABELS short)
 basilisk_add_ctest(shrinking QCC_FLAGS -grid=multigrid1D LIBS ${BASILISK_VIEW_LIBS} LABELS short)
 basilisk_add_ctest(shrinking-axi SOURCE shrinking.c REF shrinking-axi.ref DEFINES AXIS=1 QCC_FLAGS -grid=quadtree LIBS ${BASILISK_VIEW_LIBS} LABELS verylong)
@@ -327,7 +333,7 @@ basilisk_add_ctest(soliton LABELS short)
 basilisk_add_ctest(speed LABELS short)
 basilisk_add_ctest(sphere LABELS short)
 basilisk_add_ctest(spurious LABELS short)
-basilisk_add_ctest(static_bubble LABELS short)
+basilisk_add_ctest(static_bubble FILES static_bubble.sol LABELS short)
 basilisk_add_ctest(stream LABELS short)
 basilisk_add_ctest(swirl LABELS short)
 basilisk_add_ctest(taylor LIBS ${BASILISK_VIEW_LIBS} LABELS short)
@@ -338,7 +344,7 @@ basilisk_add_ctest(time LABELS short)
 basilisk_add_ctest(transcritical LABELS short)
 basilisk_add_ctest(variable LABELS short)
 basilisk_add_ctest(vertices LABELS short)
-basilisk_add_ctest(viscodrop LIBS ${BASILISK_VIEW_LIBS} LABELS short)
+basilisk_add_ctest(viscodrop LIBS ${BASILISK_VIEW_LIBS} FILES viscodrop.figueiredo viscodrop.log-9 LABELS short)
 
 # Basic/default tests named by the legacy Makefile.
 basilisk_add_ctest(halo LABELS short)
@@ -355,7 +361,7 @@ basilisk_add_ctest(tag.ctst SOURCE tag.c REF tag.cref QCC_FLAGS -grid=multigrid 
 # Explicit tests and aliases from the legacy Makefile.
 # basilisk_add_ctest(basilisk DEFINES DEBUG=1 LIBS ${BASILISK_VIEW_LIBS} FILES basilisk.gnu) # needs generated basilisk.gnu
 
-basilisk_add_ctest(bleck LIBS ${BASILISK_VIEW_LIBS} LABELS long)
+basilisk_add_ctest(bleck LIBS ${BASILISK_VIEW_LIBS} ALIASES bleck.ctst:out=cout bleck.ctst:log=clog bleck.ctst:gyre.png=gyre.png LABELS long)
 basilisk_add_ctest(bleck.ctst SOURCE bleck.c REF bleck.cref QCC_FLAGS -grid=multigrid LIBS ${BASILISK_VIEW_LIBS} LABELS long)
 basilisk_add_ctest(boundaries3 LABELS short)
 basilisk_add_ctest(boundaries3.ctst SOURCE boundaries3.c REF boundaries3.cref QCC_FLAGS -grid=multigrid LABELS short)
@@ -397,11 +403,11 @@ basilisk_add_ctest(explicit-ml SOURCE implicit.c REF explicit-ml.ref DEFINES ML=
 basilisk_add_ctest(implicit-ml SOURCE implicit.c REF implicit-ml.ref DEFINES ML=1 LABELS short)
 basilisk_add_ctest(bore LABELS short)
 basilisk_add_ctest(bore1 LABELS short)
-basilisk_add_ctest(explosion LABELS short)
+basilisk_add_ctest(explosion ALIASES explosion.ctst:out=cout explosion.ctst:log=clog LABELS short)
 basilisk_add_ctest(explosion.ctst SOURCE explosion.c REF explosion.cref QCC_FLAGS -grid=multigrid LABELS short)
 basilisk_add_ctest(explosion.3D SOURCE explosion.c REF explosion.3D.ref QCC_FLAGS -grid=octree LABELS long)
 basilisk_add_ctest(explosion3D SOURCE explosion.c REF explosion3D.ref QCC_FLAGS -grid=multigrid3D LABELS short)
-basilisk_add_ctest(laplacian LABELS short)
+basilisk_add_ctest(laplacian ALIASES laplacian.ctst:out=cout laplacian.ctst:log=clog LABELS short)
 basilisk_add_ctest(laplacian.ctst SOURCE laplacian.c REF laplacian.ref QCC_FLAGS -grid=multigrid LABELS short) 
 basilisk_add_ctest(lid LABELS short)
 basilisk_add_ctest(lidmac SOURCE lid.c REF lidmac.ref DEFINES MAC=1 LABELS short) 
@@ -413,7 +419,7 @@ basilisk_add_ctest(ponds-implicit SOURCE ponds.c LIBS kdt REF ponds-implicit.ref
 basilisk_add_ctest(ponds-ml SOURCE ponds.c LIBS kdt REF ponds-ml.ref DEFINES ML=1 LABELS long)
 basilisk_add_ctest(poiseuille-oldroydb LABELS long)
 basilisk_add_ctest(poiseuille-fenep SOURCE poiseuille-oldroydb.c REF poiseuille-fenep.ref DEFINES FENE_P=1 LABELS long)
-basilisk_add_ctest(poisson LABELS short)
+basilisk_add_ctest(poisson ALIASES poisson.ctst:out=cout poisson.ctst:log=clog LABELS short)
 basilisk_add_ctest(poisson.ctst SOURCE poisson.c REF poisson.cref QCC_FLAGS -grid=multigrid LABELS short)
 basilisk_add_ctest(rising LABELS long)
 basilisk_add_ctest(rising-axi SOURCE rising.c REF rising-axi.ref DEFINES AXIS=1 LABELS long)
@@ -425,9 +431,9 @@ basilisk_add_ctest(rising2-clsvof SOURCE rising.c REF rising2-clsvof.ref DEFINES
 basilisk_add_ctest(rising-reduced SOURCE rising.c REF rising-reduced.ref DEFINES REDUCED=1 LABELS long)
 basilisk_add_ctest(rising-levelset SOURCE rising.c REF rising-levelset.ref DEFINES LEVELSET=1 LABELS long)
 basilisk_add_ctest(rising-clsvof SOURCE rising.c REF rising-clsvof.ref DEFINES LEVELSET=1 CLSVOF=1 LABELS long)
-basilisk_add_ctest(reversed LABELS short)
+basilisk_add_ctest(reversed ALIASES reversed.ctst:out=cout reversed.ctst:log=clog LABELS short)
 basilisk_add_ctest(reversed.ctst SOURCE reversed.c REF reversed.cref QCC_FLAGS -grid=multigrid LABELS short)
-basilisk_add_ctest(rotate LABELS short)
+basilisk_add_ctest(rotate ALIASES rotate.ctst:out=cout rotate.ctst:log=clog LABELS short)
 basilisk_add_ctest(rotate.ctst SOURCE rotate.c REF rotate.cref QCC_FLAGS -grid=multigrid LABELS short)
 basilisk_add_ctest(rt LABELS short)
 basilisk_add_ctest(rt-reduced SOURCE rt.c REF rt-reduced.ref DEFINES REDUCED=1 LABELS short)
@@ -441,7 +447,7 @@ basilisk_add_ctest(facefraction LABELS short)
 basilisk_add_ctest(facefraction3D SOURCE facefraction.c REF facefraction3D.ref QCC_FLAGS -grid=multigrid3D LABELS long)
 
 # Axisymmetric group.
-basilisk_add_ctest(axiadvection MPI MPI_RANKS 7 DEFINES JACOBI=1)
+basilisk_add_ctest(axiadvection MPI MPI_RANKS 7 DEFINES JACOBI=1 QCC_FLAGS -UTRACE -DTRACE=0)
 basilisk_add_ctest(axi LABELS short)
 basilisk_add_ctest(poiseuille-axi LABELS short)
 
@@ -487,7 +493,7 @@ basilisk_add_ctest(geo LABELS short multilayer)
 basilisk_add_ctest(tsunami LABELS long multilayer)
 
 # Multilayer stratified group.
-basilisk_add_ctest(horn LABELS long mulilayer-stratified)
+basilisk_add_ctest(horn FILES horn.horn horn.vf LABELS long mulilayer-stratified)
 basilisk_add_ctest(lock LABELS short mulilayer-stratified) 
 basilisk_add_ctest(overflow LABELS long mulilayer-stratified)
 basilisk_add_ctest(overflow-isopycnal SOURCE overflow.c REF overflow-isopycnal.ref DEFINES ISOPYCNAL=1 LABELS short mulilayer-stratified)
@@ -507,8 +513,8 @@ basilisk_add_ctest(mpi-reduce MPI MPI_RANKS 3 LABELS short)
 basilisk_add_ctest(mpi-refine MPI MPI_RANKS 4 LABELS short)
 basilisk_add_ctest(mpi-refine1 MPI MPI_RANKS 11 LABELS short)
 basilisk_add_ctest(mpi-refine.3D SOURCE mpi-refine.c MPI MPI_RANKS 4 QCC_FLAGS -grid=octree LABELS short)
-basilisk_add_ctest(mpi-laplacian MPI MPI_RANKS 3 LABELS short)
-basilisk_add_ctest(mpi-laplacian.3D SOURCE mpi-laplacian.c REF mpi-laplacian.ref MPI MPI_RANKS 3 QCC_FLAGS -grid=octree LABELS short)
+basilisk_add_ctest(mpi-laplacian MPI MPI_RANKS 3 FILES mpi-laplacian/occigen LABELS short)
+basilisk_add_ctest(mpi-laplacian.3D SOURCE mpi-laplacian.c REF mpi-laplacian.ref MPI MPI_RANKS 3 QCC_FLAGS -grid=octree FILES mpi-laplacian/occigen LABELS short)
 basilisk_add_ctest(mpi-circle MPI MPI_RANKS 5 LABELS short)
 basilisk_add_ctest(mpi-circle1 SOURCE mpi-circle.c REF mpi-circle1.ref MPI MPI_RANKS 6 LABELS short)
 set_tests_properties(mpi-circle mpi-circle1 PROPERTIES RUN_SERIAL TRUE)
@@ -527,6 +533,7 @@ basilisk_add_ctest(restore-rectangle DEPENDS dump-rectangle FILES_FROM_TEST dump
 basilisk_add_ctest(bump2Dp MPI MPI_RANKS 55 LABELS short)
 basilisk_add_ctest(bump2Dp-restore SOURCE bump2Dp.c REF bump2Dp-restore.ref MPI MPI_RANKS 15 DEPENDS bump2Dp FILES_FROM_TEST bump2Dp:dump=bump2Dp-restore.dump LABELS short)
 basilisk_add_ctest(poiseuille-periodic MPI MPI_RANKS 4 LABELS short)
+set_tests_properties(poiseuille-periodic PROPERTIES RUN_SERIAL TRUE)
 basilisk_add_ctest(gfs MPI MPI_RANKS 7 LABELS short)
 basilisk_add_ctest(gfsi DEPENDS gfs FILES_FROM_TEST gfs:gfsi.gfs LABELS short)
 basilisk_add_ctest(mpi-grid MPI MPI_RANKS 4 LABELS short)
@@ -560,7 +567,29 @@ basilisk_add_ctest(cylinders LIBS ${BASILISK_VIEW_LIBS} LABELS long embed)
 basilisk_add_ctest(porous LIBS ${BASILISK_VIEW_LIBS} LABELS long embed)
 basilisk_add_ctest(porous1 LABELS long embed)
 basilisk_add_ctest(uf LABELS short embed)
-basilisk_add_ctest(starting LIBS ${BASILISK_VIEW_LIBS} LABELS long embed)
+basilisk_add_ctest(starting
+  LIBS ${BASILISK_VIEW_LIBS}
+  FILES
+    starting/surface.awk
+    starting/fig1a.KL
+    starting/fig1a.SIM
+    starting/fig1b.KL
+    starting/fig1b.SIM
+    starting/fig4.1000.KL
+    starting/fig5a.KL
+    starting/fig5a.SIM
+    starting/fig5b.KL
+    starting/fig5b.SIM
+    starting/fig6a.KL
+    starting/fig6a.SIM
+    starting/fig6b.KL
+    starting/fig6b.SIM
+    starting/fig19.f
+    starting/fig19.p
+    starting/level-13
+    starting/level-15
+    starting/level-16
+  LABELS long embed)
 basilisk_add_ctest(neumann3D LIBS ${BASILISK_VIEW_LIBS} LABELS long embed)
 basilisk_add_ctest(dirichlet3D SOURCE neumann3D.c REF dirichlet3D.ref DEFINES DIRICHLET=1 LIBS ${BASILISK_VIEW_LIBS} LABELS long embed)
 basilisk_add_ctest(hydrostatic3 LIBS ${BASILISK_VIEW_LIBS} LABELS short embed)
@@ -573,6 +602,7 @@ basilisk_add_ctest(dirichlet-axi SOURCE neumann-axi.c REF dirichlet-axi.ref DEFI
 # basilisk_add_ctest(entrainment LABELS gotm) # needs GOTM/CVMix runtime parity check
 # basilisk_add_ctest(ows_papa LABELS gotm) # needs GOTM/CVMix runtime parity check
 # basilisk_add_ctest(ows_papa-kpp SOURCE ows_papa.c REF ows_papa-kpp.ref DEFINES KPP=1 LABELS gotm) # needs GOTM/CVMix runtime parity check
+# basilisk_add_ctest(cvmix SOURCE unmaintained/cvmix.c LABELS gotm) # unmaintained; needs CVMix runtime parity check
 
 # Miscellaneous explicit groups.
 basilisk_add_ctest(stencils DEFINES PRINTBOUNDARY=1 LABELS short)
