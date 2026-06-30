@@ -6,7 +6,7 @@ on:
     branches:
       - main
       - master
-      - reloctable-install
+      - relocatable-install
   workflow_dispatch:
     inputs:
       task:
