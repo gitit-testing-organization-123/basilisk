@@ -112,6 +112,7 @@ function(basilisk_add_ctest NAME)
   string(REPLACE ";" "|" stage_files_arg "${BCT_FILES}")
   string(REPLACE ";" "|" stage_test_files_arg "${BCT_FILES_FROM_TEST}")
   set(test_helper_paths
+    "${PROJECT_SOURCE_DIR}/src"
     "${PROJECT_BINARY_DIR}/src/kdt"
   )
   string(REPLACE ";" "|" test_helper_paths_arg "${test_helper_paths}")
@@ -262,6 +263,7 @@ basilisk_add_ctest(bump1 LABELS short)
 basilisk_add_ctest(bump2D LABELS short)
 basilisk_add_ctest(bump2D1 ALIASES bump2D:plot.png=plot.png bump2D:level.png=level.png LABELS short)
 basilisk_add_ctest(bump2Dc LABELS short)
+basilisk_add_ctest(capwave LABELS short)
 basilisk_add_ctest(circle LABELS short)
 basilisk_add_ctest(circle-variable LABELS short)
 basilisk_add_ctest(cyl_axi LABELS short)
