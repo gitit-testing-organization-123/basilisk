@@ -65,7 +65,7 @@ if(COMP_ID STREQUAL GNU)
 
   mark_as_advanced(C99_FLAGS CC99 CADNACC CADNALIBS)
     
-elseif(COMP_ID STREQUAL "Clang")
+elseif(COMP_ID MATCHES "^(Clang|AppleClang)$")
 
   set(C99_FLAGS
       "-std=c99 -D_XOPEN_SOURCE=700"

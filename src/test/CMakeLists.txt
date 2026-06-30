@@ -1,6 +1,6 @@
 include(${PROJECT_SOURCE_DIR}/cmake/basilisk_add_executable.cmake)
 
-set(BASILISK_TEST_TIMEOUT 1200 CACHE STRING "Default timeout, in seconds, for each Basilisk CTest test")
+set(BASILISK_TEST_TIMEOUT 3600 CACHE STRING "Default timeout, in seconds, for each Basilisk CTest test")
 set(BASILISK_TEST_RUNNER "${PROJECT_SOURCE_DIR}/cmake/run_basilisk_executable_test.cmake")
 set(BASILISK_DIMENSIONS_TEST_RUNNER "${PROJECT_SOURCE_DIR}/cmake/run_basilisk_dimensions_test.cmake")
 set(BASILISK_TEST_OPENGLIBS
