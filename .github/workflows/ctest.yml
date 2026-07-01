@@ -10,6 +10,11 @@ on:
         default: ""
         type: string
 
+permissions:
+  contents: read
+  actions: read
+  checks: write
+
 jobs:
   ctest-default:
     name: Run CTest suite
@@ -69,11 +74,29 @@ jobs:
             jobs="$(sysctl -n hw.logicalcpu)"
           fi
           ctest_args=(--test-dir build/release --output-on-failure)
+          ctest_args+=(--output-junit build/release/ctest-junit.xml)
           ctest_args+=(-E '^facefraction3D$')
           if [[ -n "${CTEST_LABEL}" ]]; then
             ctest_args+=(-L "${CTEST_LABEL}")
           fi
           ctest "${ctest_args[@]}"
+
+      - name: Publish CTest report
+        if: ${{ !cancelled() }}
+        uses: dorny/test-reporter@v3
+        with:
+          name: CTest
+          path: build/release/ctest-junit.xml
+          reporter: java-junit
+
+      - name: Upload CTest JUnit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: basilisk-ctest-junit
+          path: build/release/ctest-junit.xml
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Upload artifact tree
         if: always()
