@@ -53,6 +53,7 @@
               gdb
               strace
               doxygen
+              pstoedit
               openmpi
               python3
               swig

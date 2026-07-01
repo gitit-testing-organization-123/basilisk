@@ -1,6 +1,7 @@
 include(${PROJECT_SOURCE_DIR}/cmake/basilisk_add_ctest.cmake)
 
 find_package(GSL REQUIRED)
+find_program(PSTOEDIT_EXECUTABLE pstoedit REQUIRED)
 
 # Default-pattern tests from the legacy Makefile.defs inventory that are already
 # being carried explicitly in this CMake port.
@@ -113,15 +114,11 @@ basilisk_add_ctest(halo LABELS short)
 basilisk_add_ctest(interpolate LABELS short)
 basilisk_add_ctest(events LABELS short )
 basilisk_add_ctest(faces LABELS short)
-
-# basilisk_add_ctest(coarsen DEFINES MTRACE=3 QCC_FLAGS -progress LABELS short)
+basilisk_add_ctest(coarsen DEFINES MTRACE=3 QCC_FLAGS -progress LABELS short)
 # basilisk_add_ctest(lid-restore SOURCE lid.c REF lid-restore.ref FILES lid-restore.dump) # needs lid.tst-produced dump staging
 # basilisk_add_ctest(poiseuille.vtst SOURCE poiseuille.c REF poiseuille.ref) # legacy valgrind vtst mode
-
 basilisk_add_ctest(tag.ctst SOURCE tag.c REF tag.cref QCC_FLAGS -grid=multigrid LABELS short)
-
-# Explicit tests and aliases from the legacy Makefile.
-# basilisk_add_ctest(basilisk DEFINES DEBUG=1 LIBS ${BASILISK_VIEW_LIBS} FILES basilisk.gnu) # needs generated basilisk.gnu
+basilisk_add_ctest(basilisk DEFINES DEBUG=1 LIBS ${BASILISK_VIEW_LIBS} FILES basilisk.gnu) 
 
 basilisk_add_ctest(bleck LIBS ${BASILISK_VIEW_LIBS} ALIASES bleck.ctst:out=cout bleck.ctst:log=clog bleck.ctst:gyre.png=gyre.png LABELS long)
 basilisk_add_ctest(bleck.ctst SOURCE bleck.c REF bleck.cref QCC_FLAGS -grid=multigrid LIBS ${BASILISK_VIEW_LIBS} LABELS long)
