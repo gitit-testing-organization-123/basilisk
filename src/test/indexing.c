@@ -28,8 +28,7 @@ int main (int argc, char ** argv)
   scalar index[];
   z_indexing (index, true);
 
-  if (pid() == 0)
-    output_cells (stdout);
+  output_cells (stdout);
   foreach() {
     fprintf (qerr, "%g %g %g %g %g\n", x, y, z, index[], reference[]);
     assert (index[] == reference[]);

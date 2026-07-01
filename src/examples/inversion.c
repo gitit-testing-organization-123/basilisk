@@ -66,7 +66,7 @@ event init (i = 0) {
     f1[] = (x <= 0 && y <= 0 && z <= 0);
   astats s;
   do {
-    s = adapt_wavelet ({f1}, {0.0}, maxlevel, list = NULL);
+    s = adapt_wavelet ({f1}, (double[]){0.0}, maxlevel, list = NULL);
     foreach()
       f1[] = (x <= 0 && y <= 0 && z <= 0);
   } while (s.nf);
@@ -85,7 +85,8 @@ event acceleration (i++) {
 
 event properties (i++) {
 #if TREE
-  set_prolongation (f, refine_bilinear);
+  f.prolongation = refine_bilinear;
+  f.dirty = true;
 #endif
 
   foreach_face() {
@@ -97,7 +98,8 @@ event properties (i++) {
     rhov[] = cm[]*rho(f[]);
 
 #if TREE
-  set_prolongation (f, fraction_refine);
+  f.prolongation = fraction_refine;
+  f.dirty = true;
 #endif
 }
 
@@ -226,6 +228,6 @@ event snapshot (i = 100; i += 100) {
 
 #if TREE
 event adapt (i++) {
-  adapt_wavelet ({f,u}, {0.005,0.005,0.005,0.005}, maxlevel);
+  adapt_wavelet ({f,u}, (double[]){0.005,0.005,0.005,0.005}, maxlevel);
 }
 #endif

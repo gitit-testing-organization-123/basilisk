@@ -52,13 +52,11 @@ All other options will be passed directly to the C compiler. */
 #include <sys/wait.h>
 #include <assert.h>
 #include "ast/ast.h"
-#include "include.h"
-#include "paths.h"
 
 int dimension = 2, bghosts = 0, layers = 0;
   
 int debug = 0, catch = 0, cadna = 0, nolineno = 0, events = 0, progress = 0;
-int parallel = 0, cpu = 0, gpu = 0, cuda = 0, fp32 = 0;
+int parallel = 0, cpu = 0, gpu = 0;
 static FILE * dimensions = NULL;
 static int run = -1, finite = 1, redundant = 0, warn = 0, maxcalls = 20000000;
 char dir[] = ".qccXXXXXX";
@@ -69,6 +67,11 @@ int autolinks = 0, source = 0;
 char * dname (const char * fname);
 FILE * dopen (const char * fname, const char * mode);
   
+void includes (int argc, char ** argv,
+	       char ** grid, int * default_grid,
+	       int * dimension, int * bg, int * layers, int * gpu,
+	       const char * dir);
+
 FILE * writepath (char * path, const char * mode)
 {
   char * s = path;
@@ -112,7 +115,7 @@ AstRoot * compdir (FILE * fin, FILE * fout, FILE * swigfp,
 {
   FILE * fout1 = dopen ("_endfor.c", "w");
   AstRoot * ast = endfor (fin, fout1, grid, dimension, nolineno, progress, catch,
-			  parallel, cpu, gpu, !cuda, fp32, source == 2,
+			  parallel, cpu, gpu, source == 2,
 			  swigfp, swigname);
   fclose (fout1);
   
@@ -124,20 +127,14 @@ AstRoot * compdir (FILE * fin, FILE * fout, FILE * swigfp,
   fclose (fout1);
   fflush (fout);
 
-  if (source && autolinks && autolink) {
-    const char * linkdir = qcc_linkdir ();
-    if (linkdir && *linkdir)
-      printf ("-L%s", linkdir);
+  if (source && autolinks && autolink)
     printf ("%s\n", autolink);
-  }
 
   return ast;
 }
 
 int main (int argc, char ** argv)
 {
-  qcc_paths_init (argc > 0 ? argv[0] : NULL);
-
   char * cc = getenv ("CC99"), command[1000], command1[1000] = "";
   if (cc == NULL)
     strcpy (command, CC99);
@@ -314,7 +311,7 @@ int main (int argc, char ** argv)
     char * grid = NULL;
     int default_grid;
     includes (argc, argv, &grid, &default_grid,
-	      &dimension, &bghosts, &layers, &gpu, &cuda, &fp32,
+	      &dimension, &bghosts, &layers, &gpu,
 	      dep || tags ? NULL : dir);
     if (gpu)
       parallel = 1;
@@ -443,13 +440,14 @@ int main (int argc, char ** argv)
 	for (i = 0; i < strlen ("-pedantic"); i++)
 	  pedantic[i] = ' ';
       strcat (preproc, " -I");
-      strcat (preproc, qcc_ast_std_dir ());
+      strcat (preproc, BASILISK);
+      strcat (preproc, "/ast/std");
       strcat (preproc, " -I. -I");
-      strcat (preproc, qcc_libdir ());
+      strcat (preproc, LIBDIR);
       strcat (preproc, " ");
       if (events) {
 	strcat (preproc, " -DDEBUG_EVENTS=1 -DBASILISK=\"\\\"");
-	strcat (preproc, qcc_basilisk_root ());
+	strcat (preproc, BASILISK);
 	strcat (preproc, "\\\"\" ");
       }
       if (nolineno)
@@ -500,7 +498,7 @@ int main (int argc, char ** argv)
       rename (src, dst);
 
       strcat (command, " -I");
-      strcat (command, qcc_libdir ());
+      strcat (command, LIBDIR);
       strcat (command, " ");
       strcat (command, dir);
       strcat (command, "/");
@@ -517,14 +515,8 @@ int main (int argc, char ** argv)
   /* compilation */
   status = 0;
   if (!dep && !tags && !source) {
-    if (autolinks && autolink) {
-      const char * linkdir = qcc_linkdir ();
-      if (linkdir && *linkdir) {
-	strcat (command, " -L");
-	strcat (command, linkdir);
-      }
+    if (autolinks && autolink)
       strcat (command, autolink);
-    }
     if (debug)
       fprintf (stderr, "command: %s\n", command);
     status = system (command);
@@ -534,10 +526,11 @@ int main (int argc, char ** argv)
       exit (1);
     status = WEXITSTATUS (status);
   }
-  bool check_dimensions (AstRoot * root,
-			 bool nolineno,
-			 int run, FILE * dimensions,
-			 int finite, int redundant, int warn, int maxcalls);
+  int check_dimensions (void * root,
+			int nolineno,
+			int run, FILE * dimensions, int finite, int redundant,
+			int warn,
+			int maxcalls);
   if (ast &&
       status == 0 &&
       !check_dimensions (ast, nolineno,

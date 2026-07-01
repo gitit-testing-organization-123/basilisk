@@ -133,8 +133,6 @@ Note that only the documented test cases appear in the list below
 
 ## Embedded boundaries
 
-These tests can be run using `make embed-tests`.
-
 * [Poisson equation on complex domains](neumann.c)
 * [Poisson equation on complex domains in 3D](neumann3D.c)
 * [Poisson equation on complex axisymmetric domains](neumann-axi.c)
@@ -209,7 +207,6 @@ make -k gpu-tests
 * [A range of GPU tests](gpu.c)
 * [Layers](layers.c)
 * [Reductions on GPUs](gpu-reduce.c)
-* [Restrictions on rectangular domains](restriction1.c)
 * [Non-linear geostrophic adjustment](nonlinear.c)
 * [Time-reversed advection in a vortex](advection.c)
 * [Saint-Venant bump](bump2D-gpu.c)
@@ -247,9 +244,6 @@ See also the [GPU Benchmarks](/src/grid/gpu/Benchmarks.md).
 * [Redistancing of a perturbed distance field](redistance-ellipse.c)
 * [Einstein summation](einstein_sum.c)
 * [Macros](macro.c)
-* [Very simple harmonic analysis](harmonic.c)
-* [Comparison between Fortran and C remapping](testremap.c)
-* [Test of Dirichlet, Robin and Neumann conditions when remapping](remap-robin.c)
 
 ## Unmaintained
 

@@ -12,7 +12,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
-#pragma autolink -lppr -lgfortran
+#pragma autolink -L$BASILISK/ppr -lppr -lgfortran
 
 #define p1e_method 100
 #define p3e_method 101
@@ -32,6 +32,6 @@
 #define bcon_slope 402
 
 void my_remap (int * npos, int * nnew, int * nvar, int * ndof,
-	       const double * xpos, const double * xnew,
+	       double * xpos, double * xnew,
 	       double * fdat, double * fnew,
 	       int * edge_meth, int * cell_meth, int * cell_lim);

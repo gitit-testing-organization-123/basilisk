@@ -127,8 +127,9 @@ these reconstructions.  */
 void conserve_elevation (void)
 {
   h.refine  = refine_elevation;
-  set_prolongation (h, prolongation_elevation);
-  set_restriction (h, restriction_elevation);
+  h.prolongation = prolongation_elevation;
+  h.restriction = restriction_elevation;
+  h.dirty = true;
 }
 #else // Cartesian
 void conserve_elevation (void) {}

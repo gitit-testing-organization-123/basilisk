@@ -302,10 +302,10 @@ void input_gfs (FILE * fp = stdin,
   }
   for (scalar s in listm)
     if (!is_constant(s))
-      set_dirty_stencil (s);
+      s.dirty = true;
   for (scalar s in input)
-    if (s.i != INT_MAX && !is_constant(s))
-      set_dirty_stencil (s);
+    if (!is_constant(s))
+      s.dirty = true;
 
   free (input);
   if (file)

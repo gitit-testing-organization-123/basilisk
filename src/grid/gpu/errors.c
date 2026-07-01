@@ -745,10 +745,9 @@ char *yytext;
 #line 5 "errors.lex"
 
   /**
-  # Error message parsing for compilation of GLSL or CUDA code on GPUs
+  # Error message parsing for compilation of GLSL code on GPUs
   */
   static char * sout;
-  static const char * slang;
   static char * fname;
   static int line;
   
@@ -840,14 +839,12 @@ char *yytext;
     while (*s != '\0') {
       if (*s == '\n') {
 	while (error && eline <= line) {
-          if (msg[0] != '\0' && !strstr(msg, "error detected")) {
-            merged = str_append (merged, "@");
-            if (eline != line)
-              merged = str_append (merged, "!");
-            merged = str_append (merged, msg);
-            merged = str_append (merged, "@");
-          }
-          error = next_error (error, &eline, &msg);
+	  merged = str_append (merged, "@");
+	  if (eline != line)
+	    merged = str_append (merged, "!");
+	  merged = str_append (merged, msg);
+	  merged = str_append (merged, "@");
+	  error = next_error (error, &eline, &msg);
 	}
 	line++;
       }
@@ -859,8 +856,8 @@ char *yytext;
     free (src);
     return merged;
   }
-#line 863 "errors.c"
-#line 864 "errors.c"
+#line 860 "errors.c"
+#line 861 "errors.c"
 
 #define INITIAL 0
 
@@ -1080,10 +1077,10 @@ YY_DECL
 		}
 
 	{
-#line 128 "errors.lex"
+#line 125 "errors.lex"
 
 
-#line 1087 "errors.c"
+#line 1084 "errors.c"
 
 	while ( /*CONSTCOND*/1 )		/* loops until end-of-file is reached */
 		{
@@ -1153,7 +1150,7 @@ do_action:	/* This label is used only to access EOF actions. */
 
 case 1:
 YY_RULE_SETUP
-#line 130 "errors.lex"
+#line 127 "errors.lex"
 {
   char * sline = yytext;
   while (!strchr ("0123456789", *sline)) sline++;
@@ -1170,7 +1167,7 @@ YY_RULE_SETUP
 case 2:
 /* rule 2 can match eol */
 YY_RULE_SETUP
-#line 143 "errors.lex"
+#line 140 "errors.lex"
 {
   if (0) // !strncmp (yytext, "@error ", 7))
     yytext += 6;
@@ -1183,9 +1180,7 @@ YY_RULE_SETUP
     char s[81];
     snprintf (s, 80, "%d", line);
     sout = str_append (sout, s);
-    sout = str_append (sout, ": ");
-    sout = str_append (sout, slang);
-    sout = str_append (sout, ": ");
+    sout = str_append (sout, ": GLSL: ");
   }
   *strchr (yytext + 1, '@') = '\0';
   sout = str_append (sout, yytext + 1);
@@ -1195,20 +1190,20 @@ YY_RULE_SETUP
 case 3:
 /* rule 3 can match eol */
 YY_RULE_SETUP
-#line 164 "errors.lex"
+#line 159 "errors.lex"
 { line++; }
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
-#line 166 "errors.lex"
+#line 161 "errors.lex"
 ; // very important!!
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 168 "errors.lex"
+#line 163 "errors.lex"
 ECHO;
 	YY_BREAK
-#line 1212 "errors.c"
+#line 1207 "errors.c"
 case YY_STATE_EOF(INITIAL):
 	yyterminate();
 
@@ -2227,18 +2222,16 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 168 "errors.lex"
+#line 163 "errors.lex"
 
 
-char * gpu_errors (const char * errors, const char * source, char * fout,
-                   const char * lang)
+char * gpu_errors (const char * errors, const char * source, char * fout)
 {
   if (0) yyunput (0, NULL); // just prevents 'yyunput unused' compiler warning
 
   char * merged = merge (source, errors);
   sout = fout;
   sout = str_append (NULL, "");
-  slang = lang;
   YY_BUFFER_STATE buf = yy_scan_string (merged);
   fname = NULL;
   line = 1;

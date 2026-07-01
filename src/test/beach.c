@@ -38,7 +38,6 @@ int main()
 #if ML
   nl = 2;
   breaking = 0.07;
-  cell_lim = mono_limit;
 #else
   alpha_d = 1.;
   

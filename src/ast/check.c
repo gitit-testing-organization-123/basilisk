@@ -55,7 +55,6 @@ Ast * ast_check_grammar (Ast * n, bool recursive, bool stencils)
   }
   else {
     AstTerminal * t = ast_terminal (n);
-    (void) t;
     assert (t->file && t->line);
   }
   return n;

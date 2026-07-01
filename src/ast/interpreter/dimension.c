@@ -270,16 +270,9 @@ Dimension * const dimension_any = (Dimension *) 128;
 
 const char * ast_file_crop (const char * file)
 {
-  const char * root = qcc_basilisk_root ();
-  int len = root ? strlen (root) : 0;
-  if (len && strlen (file) > len && !strncmp (file, root, len)) {
-    const char * base = strrchr (root, '/');
-    base = base ? base + 1 : root;
-    if (!strcmp (base, "src"))
-      return file + len - strlen ("src");
-    const char * rel = file + len;
-    return *rel == '/' ? rel + 1 : rel;
-  }
+  int len = strlen (BASILISK);
+  if (strlen (file) > len && !strncmp (file, BASILISK, len))
+    return file + len - 4;
   return file;
 }
 
@@ -365,7 +358,7 @@ Ast * parent_expression (const Key * c)
 {
   Ast * n = c->parent;
   Ast * parent = ast_parent (n, sym_assignment_expression);
-  if (ast_evaluate_constant_expression (parent, NULL) < DBL_MAX) {
+  if (ast_evaluate_constant_expression (parent) < DBL_MAX) {
     if (ast_schema (ast_ancestor (parent, 2), sym_init_declarator,
 		    2, sym_initializer))
       n = ast_ancestor (parent, 2);
@@ -723,16 +716,7 @@ Dimension * get_dimension (Value * v, Stack * stack)
   if (ast_schema ((Ast *) v, sym_array_access)) {
     Ast * n = (Ast *) v;
     assert (n->child[2]);
-
-    /**
-    We re-run the array reference. This can be problematic if the
-    reference has side-effects, for example a reference like
-    `a[j++][1]` will cause `j` to be incremented twice ... There is no
-    easy fix: one needs to avoid indexing multidimensional arrays with
-    side effects. */
-    
     Value * a = run (n->child[0], stack);
-    
     assert (a);
     Value * value = array_member_value (n, a, 0, false, stack);
     return (value_dimension (v) = value_dimension (value));
@@ -1186,11 +1170,8 @@ static bool system_pivot (System * s, Stack * stack)
 	    /* Substract the scaled pivot row from the current row */
 	    DEBUG (fprintf (stderr, "pivoting %d ", h), constraint_print (s->r[h], stderr, LINENO | INDEX | NORIGIN),
 		   fprintf (stderr, "         in "), constraint_print (r, stderr, LINENO | INDEX | NORIGIN));
-	    foreach_key(r, c) {
-	      bool removed = key_remove_dimension (c, r);
-	      assert (removed);
-        (void) removed;
-	    }
+	    foreach_key(r, c)
+	      assert (key_remove_dimension (c, r));
 	    Dimension * d = dimensions_multiply (r->origin, s->alloc, r, s->r[h], - f);
 	    foreach_key(d, c)
 	      key_add_dimension (c, d, stack);
@@ -1809,7 +1790,7 @@ int compare_dimensions (const void * pa, const void * pb)
 static
 bool is_finite_constant (const Key * c)
 {
-  double val = ast_evaluate_constant_expression (c->parent, NULL);
+  double val = ast_evaluate_constant_expression (c->parent);
   return val > 1e-30 && val < 1e30 && val != 1234567890;
 }
 

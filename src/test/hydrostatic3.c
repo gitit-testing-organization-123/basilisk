@@ -71,9 +71,9 @@ int main()
   refine (level < 7 && cs[] > 0 && cs[] < 1);
   porous (cs, fs);
 #else
-  adapt_wavelet ({cs}, {0.01}, 7);
+  adapt_wavelet ({cs}, (double[]){0.01}, 7);
   porous (cs, fs);
-  adapt_wavelet ({cs}, {0.01}, 7);
+  adapt_wavelet ({cs}, (double[]){0.01}, 7);
   porous (cs, fs);
 #endif
 
@@ -87,9 +87,9 @@ int main()
   foreach()
     p[] = (cs[] != 0.)*(G.x[]*x + G.y[]*y + G.z[]*z); // exact pressure
 #if 0
-  set_restriction (p, restriction_exact);
-  p.refine = refine_exact;
-  set_prolongation (p, refine_exact);
+  p.restriction = restriction_exact;
+  p.refine = p.prolongation = refine_exact;
+  p.dirty = true;
 #endif
   
   event ("acceleration");

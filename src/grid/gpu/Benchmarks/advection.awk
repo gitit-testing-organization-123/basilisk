@@ -5,10 +5,6 @@ BEGIN {
     a[i][n++] = $(NF - findex)
     next
 }
-/# *Title:/ {
-    title[i] = $3
-    next
-}
 {
     if (n != 0) {
 	n = 0    
@@ -16,14 +12,11 @@ BEGIN {
     }
 }
 END {
-    printf "Title"
-    for (k = 0; k < i; k++)
-        printf " " title[k];
-    printf "\n"
+    print "Title Inteli7 IntelUHD RTX3050 RTX6000 RTX4090"
     for (j = 0; j <= 5; j++) {
 	printf ("%d^2 ", 2**(j + minlevel));
-	for (k = 0; k < i; k++)
-	    printf ("%g ", a[k][j]);
+	for (i = 0; i < 5; i++)
+	    printf ("%g ", a[i][j]);
 	print ""
     }	
 }

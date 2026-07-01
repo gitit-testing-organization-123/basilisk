@@ -16,10 +16,8 @@ event defaults (i = 0)
   If the viscosity is non-zero, we need to allocate the face-centered
   viscosity field. */
   
-  if (mu1 || mu2) {
+  if (mu1 || mu2)
     mu = new face vector;
-    reset ((scalar *){mu}, 0);
-  }
 
   /**
   We add the interface to the default display. */
@@ -75,7 +73,8 @@ event tracer_advection (i++)
 #endif // !sf
 
 #if TREE
-  set_prolongation (sf, refine_bilinear);
+  sf.prolongation = refine_bilinear;
+  sf.dirty = true; // boundary conditions need to be updated
 #endif
 }
 
@@ -96,6 +95,7 @@ event properties (i++)
     rhov[] = cm[]*rho(sf[]);
 
 #if TREE
-  set_prolongation (sf, fraction_refine);
+  sf.prolongation = fraction_refine;
+  sf.dirty = true; // boundary conditions need to be updated
 #endif
 }

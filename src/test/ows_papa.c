@@ -231,8 +231,9 @@ void init_profile (Point point, const char * fname,
       break;
   } while (1);
   double zd[n], od[n];
-  int i;
-  for (i = 0; i < n && fscanf (fp, "%lf %lf", &zd[i], &od[i]) == 2; i++);
+  int i = 0;
+  while (fscanf (fp, "%lf %lf", &zd[i], &od[i]) == 2)
+    i++;
   if (i != n) {
     fprintf (stderr, "%s: error: not enough points: read %d out of %d\n",
 	     fname, i, n);

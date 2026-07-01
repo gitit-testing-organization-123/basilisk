@@ -85,21 +85,6 @@ double neumann_homogeneous (double expr, Point point = point, scalar s = _s)
 }
 
 /**
-Navier/Robin boundary condition */
-
-static inline
-double navier (double expr, double lambda, Point point = point, scalar s = _s)
-{
-  return (Delta*expr + s[]*(lambda - Delta/2.))/(lambda + Delta/2.);
-}
-
-static inline
-double navier_homogeneous (double expr, double lambda, Point point = point, scalar s = _s)
-{
-  return s[]*(lambda - Delta/2.)/(lambda + Delta/2.);
-}
-
-/**
 Register functions on GPUs */
 
 #if _GPU
@@ -379,18 +364,15 @@ static void cartesian_scalar_clone (scalar clone, scalar src)
   char * cname = clone.name;
   BoundaryFunc * boundary = clone.boundary;
   BoundaryFunc * boundary_homogeneous = clone.boundary_homogeneous;
-  BoundaryStencilFunc * boundary_stencil = clone.boundary_stencil;
   assert (src.block > 0 && clone.block == src.block);
   free (clone.depends);
   _attribute[clone.i] = _attribute[src.i];
   clone.name = cname;
   clone.boundary = boundary;
   clone.boundary_homogeneous = boundary_homogeneous;
-  clone.boundary_stencil = boundary_stencil;
   for (int i = 0; i < nboundary; i++) {
     clone.boundary[i] = src.boundary[i];
     clone.boundary_homogeneous[i] = src.boundary_homogeneous[i];
-    clone.boundary_stencil[i] = src.boundary_stencil[i];
   }
   clone.depends = list_copy (src.depends);
 }
@@ -427,7 +409,6 @@ void delete (scalar * list)
       free (fb.name); fb.name = NULL;
       free (fb.boundary); fb.boundary = NULL;
       free (fb.boundary_homogeneous); fb.boundary_homogeneous = NULL;
-      free (fb.boundary_stencil); fb.boundary_stencil = NULL;
       free (fb.depends); fb.depends = NULL;
       fb.freed = true;
     }
@@ -530,7 +511,7 @@ static scalar * list_add_depends (scalar * list, scalar s)
       return list;
   scalar * list1 = list;
   for (scalar d in _attribute[s.i].depends)
-    if (!(d.stencil.bc & s_centered))
+    if (d.dirty)
       list1 = list_add_depends (list1, d);
   return list_append (list1, s);
 }
@@ -546,11 +527,11 @@ void boundary_internal (scalar * list, const char * fname, int line)
   for (scalar s in list)
     if (!is_constant(s) && s.block > 0) {
       if (scalar_is_dirty (s)) {
-	if (s.face && !(s.stencil.bc & s_face))
+	if (s.face && s.dirty != 2)
 	  foreach_dimension()
 	    if (s.v.x.i == s.i)
 	      listf.x = list_add (listf.x, s), flux = true;
-	if (!is_constant(cm) && !(cm.stencil.bc & s_centered))
+	if (!is_constant(cm) && cm.dirty)
 	  listc = list_add_depends (listc, cm);
 	if (s.face != 2) // flux only
 	  listc = list_add_depends (listc, s);
@@ -585,7 +566,7 @@ void boundary_internal (scalar * list, const char * fname, int line)
 #endif
     boundary_level (listc, -1);
     for (scalar s in listc)
-      s.stencil.bc |= s_centered;
+      s.dirty = false;
     free (listc);
   }
 }
@@ -600,8 +581,7 @@ void cartesian_boundary_face (vectorl vl)
   scalar * listc = NULL;
   foreach_dimension()
     for (scalar s in vl.x) {
-      s.stencil.bc |= s_face;
-      s.stencil.bc &= ~s_centered;
+      s.dirty = 2;
       listc = list_add_depends (listc, s);
     }
   boundary_level (listc, -1);
@@ -635,7 +615,6 @@ scalar cartesian_init_scalar (scalar s, const char * name)
   int block = s.block;
   BoundaryFunc * boundary = s.boundary;
   BoundaryFunc * boundary_homogeneous = s.boundary_homogeneous;
-  BoundaryStencilFunc * boundary_stencil = s.boundary_stencil;
   s.name = pname;
   if (block < 0)
     s.block = block;
@@ -645,13 +624,9 @@ scalar cartesian_init_scalar (scalar s, const char * name)
   s.boundary = boundary ? boundary : (BoundaryFunc *) malloc (nboundary*sizeof (BoundaryFunc));
   s.boundary_homogeneous = boundary_homogeneous ? boundary_homogeneous :
     (BoundaryFunc *) malloc (nboundary*sizeof (BoundaryFunc));
-  s.boundary_stencil = boundary_stencil ? boundary_stencil :
-    (BoundaryStencilFunc *) malloc (nboundary*sizeof (BoundaryStencilFunc));
-  for (int b = 0; b < nboundary; b++) {
+  for (int b = 0; b < nboundary; b++)
     s.boundary[b] = s.boundary_homogeneous[b] =
       b < 2*dimension ? default_scalar_bc[b] : symmetry;
-    s.boundary_stencil[b] = NULL;
-  }
   s.gradient = NULL;
   foreach_dimension() {
     s.d.x = 0;  // not face
@@ -667,7 +642,7 @@ scalar cartesian_init_vertex_scalar (scalar s, const char * name)
   foreach_dimension()
     s.d.x = -1;
   for (int d = 0; d < nboundary; d++)
-    s.boundary[d] = s.boundary_homogeneous[d] = NULL, s.boundary_stencil[d] = NULL;
+    s.boundary[d] = s.boundary_homogeneous[d] = NULL;
   return s;
 }
   
@@ -691,11 +666,9 @@ vector cartesian_init_vector (vector v, const char * name)
     v.x.v = v;
   }
   /* set default boundary conditions */
-  for (int d = 0; d < nboundary; d++) {
+  for (int d = 0; d < nboundary; d++)
     v.x.boundary[d] = v.x.boundary_homogeneous[d] =
       d < 2*dimension ? default_vector_bc[d] : antisymmetry;
-    v.x.boundary_stencil[d] = NULL;
-  }
   return v;
 }
 
@@ -707,7 +680,7 @@ vector cartesian_init_face_vector (vector v, const char * name)
     v.x.face = true;
   }
   for (int d = 0; d < nboundary; d++)
-    v.x.boundary[d] = v.x.boundary_homogeneous[d] = NULL, v.x.boundary_stencil[d] = NULL;
+    v.x.boundary[d] = v.x.boundary_homogeneous[d] = NULL;
   return v;
 }
 
@@ -725,11 +698,9 @@ tensor cartesian_init_tensor (tensor t, const char * name)
   }
   /* set default boundary conditions */
   #if dimension == 1
-    for (int b = 0; b < nboundary; b++) {
+    for (int b = 0; b < nboundary; b++)
       t.x.x.boundary[b] = t.x.x.boundary_homogeneous[b] =
 	b < 2*dimension ? default_scalar_bc[b] : symmetry;
-      t.x.x.boundary_stencil[b] = NULL;
-    }
   #elif dimension == 2
     for (int b = 0; b < nboundary; b++) {
       t.x.x.boundary[b] = t.y.x.boundary[b] = 
@@ -738,8 +709,6 @@ tensor cartesian_init_tensor (tensor t, const char * name)
       t.x.y.boundary[b] = t.y.y.boundary[b] = 
 	t.x.y.boundary_homogeneous[b] = t.y.x.boundary_homogeneous[b] = 
 	b < 2*dimension ? default_vector_bc[b] : antisymmetry;
-      t.x.x.boundary_stencil[b] = t.y.y.boundary_stencil[b] =
-        t.x.y.boundary_stencil[b] = t.y.x.boundary_stencil[b] = NULL;
     }
   #else
     assert (false); // not implemented yet
@@ -976,7 +945,7 @@ trace
 void interpolate_array (scalar * list, coord * a, int n, double * v,
 			bool linear = false)
 {
-  int len = 0; NOT_UNUSED(len);
+  int len = 0;
   for (scalar s in list)
     len++;
   for (int i = 0; i < n; i++) {
@@ -1038,13 +1007,11 @@ static double periodic_bc (Point point, Point neighbor, scalar s, bool * data)
 static void periodic_boundary (int d)
 {
   /* We change the conditions for existing scalars. */
-  for (scalar s in all) {
+  for (scalar s in all)
     if (is_vertex_scalar (s))
       s.boundary[d] = s.boundary_homogeneous[d] = NULL;
     else
       s.boundary[d] = s.boundary_homogeneous[d] = periodic_bc;
-    s.boundary_stencil[d] = NULL;
-  }
   /* Normal components of face vector fields should remain NULL. */
   for (scalar s in all)
     if (s.face) {
@@ -1084,10 +1051,10 @@ void default_stencil (Point p, scalar * list)
     if (s.v.x.i != -1) {
       vector v = s.v;
       for (scalar c in {v})
-        c.stencil.io |= s_input|s_output|s_nowarning, c.stencil.width = 2;
+	c.input = c.output = c.nowarning = true, c.width = 2;
     }
     else
-      s.stencil.io |= s_input|s_output|s_nowarning, s.stencil.width = 2;
+      s.input = s.output = s.nowarning = true, s.width = 2;
   }
 }
 
@@ -1135,15 +1102,15 @@ void stencil_val (Point p, scalar s, int i, int j, int k,
       central = false;
   }
   if (central) {
-    if (!(s.stencil.io & s_output))
-      s.stencil.io |= s_input;
+    if (!s.output)
+      s.input = true;
   }
   else {
-    s.stencil.io |= s_input;
+    s.input = true;
     int d = 0;
     foreach_dimension() {
-      if ((!s.face || s.v.x.i != s.i) && abs(index[d]) > s.stencil.width)
-	s.stencil.width = abs(index[d]);
+      if ((!s.face || s.v.x.i != s.i) && abs(index[d]) > s.width)
+	s.width = abs(index[d]);
       d++;
     }
   }
@@ -1176,7 +1143,7 @@ void stencil_val_a (Point p, scalar s, int i, int j, int k, bool input,
       fflush (qstderr());
       abort();
     }
-  if (input && !(s.stencil.io & s_output))
-    s.stencil.io |= s_input;
-  s.stencil.io |= s_output;
+  if (input && !s.output)
+    s.input = true;
+  s.output = true;
 }
