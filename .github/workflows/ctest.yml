@@ -2,6 +2,7 @@ name: CTest
 
 on:
   push:
+  branches: master
   workflow_dispatch:
     inputs:
       ctest_label:
