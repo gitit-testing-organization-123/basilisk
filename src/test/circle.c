@@ -16,7 +16,7 @@ set xrange [2**(minlevel-1):2**(maxlevel+1)]
 set xtics 2**(minlevel-1),2,2**(maxlevel+1)
 set grid ytics
 plot '< grep "max error" log' u (2**$3):4 t '', exp(f(log(x))) t ftitle(a,b)
-~~~~
+~~~
 
 ~~~gnuplot Residual as a function of iterations
 reset

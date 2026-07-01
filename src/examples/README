@@ -11,6 +11,8 @@ examples)"*](/src/test/README#running-and-creating-test-cases-and-examples).
 * [The complex Ginzburg--Landau equation](ginzburg-landau.c)
 * [Distance field computation from a 3D model](distance.c)
 * [Wavelet transforms and filtering](wavelet.c)
+* [Viscous sublayer and log layer for turbulent flow in a channel](loglayer.c)
+* [Turbulent flow in a channel with a "wall model"](wall-model.c)
 
 ## Navier--Stokes
 
@@ -38,7 +40,7 @@ examples)"*](/src/test/README#running-and-creating-test-cases-and-examples).
 * [Tidally-induced internal lee waves](lee.c)
 * [Periodic wave propagation over an ellipsoidal shoal](shoal.c)
 * [Periodic wave propagation over an ellipsoidal shoal (multilayer
-  solver)](shoal-ml.c)
+  solver)](shoal-ml.gpu.c)
 * [3D breaking Stokes wave (multilayer solver)](breaking.c)
 * [Transcritical flow over a bump](gaussian-ns.c)
 * [A Shallow Water Analogue for the Standing Accretion Shock
@@ -46,6 +48,8 @@ examples)"*](/src/test/README#running-and-creating-test-cases-and-examples).
 * [The Gulf Stream](gulf-stream.c)
 * [The Global Oceanic Circulation](global.c)
 * [Global tides](global-tides.c)
+* [The Held & Suarez climate model](held-suarez.c)
+* [Post-processing for the Held & Suarez example](held-suarez-postproc.c)
 
 ## Python interface
 

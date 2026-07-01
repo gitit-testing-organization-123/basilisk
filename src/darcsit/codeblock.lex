@@ -37,16 +37,17 @@
 
   char * url (char * s, char * baseurl)
   {
-    static char s1[256];
+    static char s1[512];
     if (s[0] == '/') {
       // assert (strlen(baseurl) + strlen(s) + 1) < 256;
       char * root = getenv ("DOCUMENT_ROOT");
       if (root && s[strlen(root)] == '/' && !strncmp (root, s, strlen(root)))
 	s += strlen(root);
-      strcat (strcpy (s1, baseurl), s);
+      strcpy (s1, baseurl);
+      strncat (s1, s, 500 - strlen(baseurl));
     }
     else
-      strcpy (s1, s);
+      strncpy (s1, s, 500);
     if (ext) {
       char page[strlen(s1) + strlen (".page") + 1];
       strcpy (page, s1);
@@ -197,7 +198,8 @@ WS  [ \t\v\n\f]
   output_s (s1);
 }
 
-{ID}+{SP}*\( {
+{ID}+{SP}*\( |
+{ID}+{SP}*"<"[^>]*">"\( {
   if (!INCODE() || yyextra->scope > 0)
     REJECT;
   // keyword  anchor (function definition)
@@ -235,6 +237,13 @@ WS  [ \t\v\n\f]
 	  if (strchr ("0123456789", c1))
 	    tmp = append_c (tmp, c1);
 	tmp = append_s (tmp, "></span>");
+      }
+      else if (c1 == '<') {
+	tmp = append_c (tmp, c1);
+	while ((c1 = input(yyscanner)) > 0 && c1 != '>')
+	  tmp = append_c (tmp, c1);
+	if (c1 > 0)
+	  tmp = append_c (tmp, c1);
       }
       else {
 	tmp = append_c (tmp, c1);

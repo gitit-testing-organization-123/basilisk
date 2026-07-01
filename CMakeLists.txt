@@ -4,6 +4,13 @@ project(basilisk
   LANGUAGES C CXX
 )
 
+include(cmake/basiliskOptions.cmake)
+include(CTest)
+
+if(BASILISK_USE_PPR OR BASILISK_USE_CVMIX OR BASILISK_USE_GOTM)
+  enable_language(Fortran)
+endif()
+
 # Project settings
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -11,8 +18,11 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(BASILISK_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
 include(GNUInstallDirs)
 
+# --- third_party -------------------------------------------------------------
 
-# --- config ---------------------------------------------------------
+add_subdirectory(third_party)
+
+# --- config ------------------------------------------------------------------
 
 include(${BASILISK_ROOT}/cmake/detect_compiler.cmake)
 detect_c_compiler(COMP)
@@ -55,7 +65,7 @@ if(COMP_ID STREQUAL GNU)
 
   mark_as_advanced(C99_FLAGS CC99 CADNACC CADNALIBS)
     
-elseif(COMP_ID STREQUAL "Clang")
+elseif(COMP_ID MATCHES "^(Clang|AppleClang)$")
 
   set(C99_FLAGS
       "-std=c99 -D_XOPEN_SOURCE=700"
@@ -104,11 +114,6 @@ set(BASILISK "${CMAKE_INSTALL_FULL_INCLUDEDIR}/basilisk/"
 set(LIBDIR "${CMAKE_INSTALL_FULL_INCLUDEDIR}/basilisk/"
     CACHE PATH "Root for Basilisk libraries used by qcc")
 
-set(BASILISK_SOURCE "${PROJECT_SOURCE_DIR}/src/"
-    CACHE PATH "Root for Basilisk includes used by qcc-toolchain")
-set(LIBDIR_SOURCE "${PROJECT_SOURCE_DIR}/src/"
-    CACHE PATH "Root for Basilisk libraries used by qcc-toolchain")
-
 mark_as_advanced(BASILISK LIBDIR BASILISK_SOURCE LIBDIR_SOURCE)
 
 #
@@ -135,16 +140,29 @@ install(TARGETS
   fb_tiny
   glutils
   tinyrenderer
-  wsserver
+  ws
   EXPORT basiliskTargets
-  RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
-  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+  RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT main
+  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT main
+  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT main
+)
+
+set(basilisk_PPM_CONVERTER_PROGRAMS
+  "${PROJECT_SOURCE_DIR}/src/ppm2gif"
+  "${PROJECT_SOURCE_DIR}/src/ppm2mp4"
+  "${PROJECT_SOURCE_DIR}/src/ppm2mpeg"
+  "${PROJECT_SOURCE_DIR}/src/ppm2ogv"
+)
+
+install(PROGRAMS ${basilisk_PPM_CONVERTER_PROGRAMS}
+  DESTINATION "${CMAKE_INSTALL_BINDIR}"
+  COMPONENT main
 )
 
 # --- Install headers / sources needed as includes --------------------------------
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/src/"
   DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/basilisk"
+  COMPONENT main
   FILES_MATCHING
   PATTERN "*"
 )
@@ -154,12 +172,17 @@ install(EXPORT basiliskTargets
   FILE basiliskTargets.cmake
   NAMESPACE basilisk::
   DESTINATION "${basilisk_INSTALL_CMAKEDIR}"
+  COMPONENT main
 )
 
 # --- Install helper CMake modules -------------------------------------------------
 install(FILES
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake/basilisk_add_executable.cmake"
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/basilisk_add_ctest.cmake"
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_basilisk_executable_test.cmake"
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_basilisk_dimensions_test.cmake"
   DESTINATION "${basilisk_INSTALL_CMAKEDIR}"
+  COMPONENT main
 )
 
 # --- Generate & install basiliskConfig.cmake (+ optional version file) ------------
@@ -180,4 +203,5 @@ install(FILES
   "${CMAKE_CURRENT_BINARY_DIR}/basiliskConfig.cmake"
   "${CMAKE_CURRENT_BINARY_DIR}/basiliskConfigVersion.cmake"
   DESTINATION "${basilisk_INSTALL_CMAKEDIR}"
+  COMPONENT main
 )

@@ -56,7 +56,7 @@ or by the Basilisk libraries in gl/. */
 #include <gl/framebuffer.h>
 #include <gl/trackball.h>
 #include <gl/utils.h>
-#pragma autolink -L$BASILISK/gl -lglutils $OPENGLIBS
+#pragma autolink -lglutils $OPENGLIBS
 
 #include "utils.h"
 #include "input.h"

@@ -4,9 +4,10 @@
 %{
 
   /**
-  # Error message parsing for compilation of GLSL code on GPUs
+  # Error message parsing for compilation of GLSL or CUDA code on GPUs
   */
   static char * sout;
+  static const char * slang;
   static char * fname;
   static int line;
   
@@ -98,12 +99,14 @@
     while (*s != '\0') {
       if (*s == '\n') {
 	while (error && eline <= line) {
-	  merged = str_append (merged, "@");
-	  if (eline != line)
-	    merged = str_append (merged, "!");
-	  merged = str_append (merged, msg);
-	  merged = str_append (merged, "@");
-	  error = next_error (error, &eline, &msg);
+          if (msg[0] != '\0' && !strstr(msg, "error detected")) {
+            merged = str_append (merged, "@");
+            if (eline != line)
+              merged = str_append (merged, "!");
+            merged = str_append (merged, msg);
+            merged = str_append (merged, "@");
+          }
+          error = next_error (error, &eline, &msg);
 	}
 	line++;
       }
@@ -149,7 +152,9 @@ ES     (\\([\'\"\?\\abfnrtv]|[0-7]{1,3}|x[a-fA-F0-9]+))
     char s[81];
     snprintf (s, 80, "%d", line);
     sout = str_append (sout, s);
-    sout = str_append (sout, ": GLSL: ");
+    sout = str_append (sout, ": ");
+    sout = str_append (sout, slang);
+    sout = str_append (sout, ": ");
   }
   *strchr (yytext + 1, '@') = '\0';
   sout = str_append (sout, yytext + 1);
@@ -162,13 +167,15 @@ ES     (\\([\'\"\?\\abfnrtv]|[0-7]{1,3}|x[a-fA-F0-9]+))
 
 %%
 
-char * gpu_errors (const char * errors, const char * source, char * fout)
+char * gpu_errors (const char * errors, const char * source, char * fout,
+                   const char * lang)
 {
   if (0) yyunput (0, NULL); // just prevents 'yyunput unused' compiler warning
 
   char * merged = merge (source, errors);
   sout = fout;
   sout = str_append (NULL, "");
+  slang = lang;
   YY_BUFFER_STATE buf = yy_scan_string (merged);
   fname = NULL;
   line = 1;

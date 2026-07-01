@@ -10,7 +10,8 @@ int main (int argc, char * argv[])
   int depth = argc > 1 ? atoi(argv[1]) : 6;
   refine_unbalanced ((level <= depth && x <= -0.25 && y < 0 && y >= -0.25) ||
 		     (level <= depth - 1 && y < 0), NULL);
-  output_cells (stdout);
+  if (pid() == 0)
+    output_cells (stdout);
   
   scalar s[];
   foreach()

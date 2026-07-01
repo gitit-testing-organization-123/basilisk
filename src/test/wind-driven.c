@@ -194,7 +194,8 @@ event output (t = end) {
       scalar w;
       vector u;
       for (w,u in wl,ul) {
-	printf ("%g %g %g %g\n", x, z + h[]*layer[l]/2., u.x[], w[]);
+	printf ("%g %g %g %g\n", x, z + h[]*layer[l]/2., u.x[],
+		w.i >= 0 ? w[] : 0.);
 	z += layer[l++]*h[];
       }
 #else

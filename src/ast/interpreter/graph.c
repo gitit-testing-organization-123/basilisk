@@ -164,10 +164,12 @@ void remove_node_internal (Graph * g, Node * node)
 static
 void edge_collapse_parent (Graph * g, Node * node, Node * parent)
 {
-  assert (remove_edge (parent->child, node));
+  float removed = remove_edge (parent->child, node);
+  assert (removed);
   if (node->child)
     for (Edge * e = node->child; e->n; e++) {
-      assert (remove_edge (e->n->parent, node));
+      float removed = remove_edge (e->n->parent, node);
+      assert (removed);
       add_edge (parent, e->n, e->c*node->parent->c);
     }
   check_node (parent);
@@ -181,13 +183,15 @@ void edge_collapse_child (Graph * g, Node * node, Node * child)
   assert (c);
   if (node->parent)
     for (Edge * e = node->parent; e->n; e++) {
-      assert (remove_edge (e->n->child, node));
+      float removed = remove_edge (e->n->child, node);
+      assert (removed);
       add_edge (e->n, child, e->c*c);
     }
   if (node->child)
     for (Edge * e = node->child; e->n; e++)
       if (!identical_nodes (e->n, child)) {
-	assert (remove_edge (e->n->parent, node));
+	float removed = remove_edge (e->n->parent, node);
+	assert (removed);
 	add_edge (child, e->n, e->c*c);
       }
   check_node (child);
@@ -198,11 +202,15 @@ static
 void remove_node (Graph * g, Node * node)
 {
   if (node->child)
-    for (Edge * e = node->child; e->n; e++)
-      assert (remove_edge (e->n->parent, node));
+    for (Edge * e = node->child; e->n; e++) {
+      float removed = remove_edge (e->n->parent, node);
+      assert (removed);
+    }
   if (node->parent)
-    for (Edge * e = node->parent; e->n; e++)
-      assert (remove_edge (e->n->child, node));
+    for (Edge * e = node->parent; e->n; e++) {
+      float removed = remove_edge (e->n->child, node);
+      assert (removed);
+    }
   remove_node_internal (g, node);
 }
 
