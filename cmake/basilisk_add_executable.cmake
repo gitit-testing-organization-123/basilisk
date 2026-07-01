@@ -115,6 +115,9 @@ function(_add_basilisk_executable)
 
   target_compile_definitions(${BAE_NAME} PRIVATE ${target_definitions})
   target_include_directories(${BAE_NAME} PRIVATE ${target_include_dirs})
+  target_compile_options(${BAE_NAME} PRIVATE
+    $<$<C_COMPILER_ID:GNU>:-Wno-stringop-overflow>
+  )
 
   target_link_libraries(${BAE_NAME}
     PRIVATE
