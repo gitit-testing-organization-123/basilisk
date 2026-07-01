@@ -4,8 +4,7 @@ foreach(required_var IN ITEMS
     TEST_SOURCE_FILE
     TEST_WORK_DIR
     TEST_SOURCE_DIR
-    TEST_QCC
-    TEST_BASILISK_SOURCE_DIR)
+    TEST_QCC)
   if(NOT DEFINED ${required_var})
     message(FATAL_ERROR "${required_var} is required")
   endif()
@@ -19,11 +18,36 @@ foreach(default_var IN ITEMS
     TEST_INCLUDES
     TEST_QCC_FLAGS
     TEST_BASILISK_LINKDIR
+    TEST_BASILISK_SOURCE_DIR
+    TEST_BASILISK_DIR
+    TEST_BASILISK_LIBDIR
+    TEST_BASILISK_INCLUDE_DIR
     TEST_OPENGLIBS)
   if(NOT DEFINED ${default_var})
     set(${default_var} "")
   endif()
 endforeach()
+
+if(NOT TEST_BASILISK_DIR)
+  if(TEST_BASILISK_SOURCE_DIR)
+    set(TEST_BASILISK_DIR "${TEST_BASILISK_SOURCE_DIR}/src")
+  else()
+    message(FATAL_ERROR
+      "TEST_BASILISK_DIR is required when TEST_BASILISK_SOURCE_DIR is not set")
+  endif()
+endif()
+
+if(NOT TEST_BASILISK_LIBDIR)
+  set(TEST_BASILISK_LIBDIR "${TEST_BASILISK_DIR}")
+endif()
+
+if(NOT TEST_BASILISK_INCLUDE_DIR)
+  if(TEST_BASILISK_SOURCE_DIR)
+    set(TEST_BASILISK_INCLUDE_DIR "${TEST_BASILISK_SOURCE_DIR}")
+  else()
+    set(TEST_BASILISK_INCLUDE_DIR "${TEST_BASILISK_DIR}")
+  endif()
+endif()
 
 if(NOT TEST_TIMEOUT)
   set(TEST_TIMEOUT 10800)
@@ -119,7 +143,7 @@ endforeach()
 
 set(qcc_include_flags
   "-I${TEST_SOURCE_DIR}"
-  "-I${TEST_BASILISK_SOURCE_DIR}"
+  "-I${TEST_BASILISK_INCLUDE_DIR}"
 )
 foreach(include_dir IN LISTS TEST_INCLUDES)
   if(include_dir MATCHES "^-I")
@@ -130,8 +154,8 @@ foreach(include_dir IN LISTS TEST_INCLUDES)
 endforeach()
 
 set(test_env
-  "BASILISK=${TEST_BASILISK_SOURCE_DIR}/src"
-  "BASILISK_LIBDIR=${TEST_BASILISK_SOURCE_DIR}/src"
+  "BASILISK=${TEST_BASILISK_DIR}"
+  "BASILISK_LIBDIR=${TEST_BASILISK_LIBDIR}"
   "BASILISK_LINKDIR=${TEST_BASILISK_LINKDIR}"
   "OPENGLIBS=${TEST_OPENGLIBS}"
 )

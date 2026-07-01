@@ -178,6 +178,9 @@ install(EXPORT basiliskTargets
 # --- Install helper CMake modules -------------------------------------------------
 install(FILES
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake/basilisk_add_executable.cmake"
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/basilisk_add_ctest.cmake"
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_basilisk_executable_test.cmake"
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_basilisk_dimensions_test.cmake"
   DESTINATION "${basilisk_INSTALL_CMAKEDIR}"
   COMPONENT main
 )
