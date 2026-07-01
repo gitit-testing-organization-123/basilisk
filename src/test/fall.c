@@ -82,8 +82,8 @@ event init (t = 0) {
 
   /**
   At a wall of normal $\mathbf{n}$ the component of the viscoelastic
-  stress tensor $tau_p_{nn}$ is zero. Since the left boundary is a wall, we
-  set $tau_p_{xx}$ equal to zero at that boundary. */
+  stress tensor $tau_{p_{nn}}$ is zero. Since the left boundary is a wall, we
+  set $tau_{p_{xx}}$ equal to zero at that boundary. */
   
   scalar s = tau_p.x.x;
   s[left] = dirichlet(0.);
