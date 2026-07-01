@@ -17,7 +17,8 @@
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/install/release",
         "BASILISK_USE_KDT": "On",
         "BASILISK_USE_PPR": "On",
-        "BASILISK_USE_CVMIX": "On"
+        "BASILISK_USE_CVMIX": "On",
+        "BASILISK_USE_GOTM": "On"
       }
     },
     {

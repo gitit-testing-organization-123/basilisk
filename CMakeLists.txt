@@ -7,7 +7,7 @@ project(basilisk
 include(cmake/basiliskOptions.cmake)
 include(CTest)
 
-if(BASILISK_USE_PPR OR BASILISK_USE_CVMIX)
+if(BASILISK_USE_PPR OR BASILISK_USE_CVMIX OR BASILISK_USE_GOTM)
   enable_language(Fortran)
 endif()
 

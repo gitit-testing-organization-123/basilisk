@@ -64,6 +64,11 @@
               rocmPackages.clr
               rocmPackages.hipcc
               gfortran
+              netcdffortran
+              netcdf
+              hdf5
+              curl
+              zlib
             ];
 
             shellHook = ''

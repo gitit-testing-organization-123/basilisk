@@ -358,10 +358,20 @@ basilisk_add_ctest(neumann-axi LIBS ${BASILISK_VIEW_LIBS} LABELS short embed)
 basilisk_add_ctest(dirichlet-axi SOURCE neumann-axi.c REF dirichlet-axi.ref DEFINES DIRICHLET=1 LIBS ${BASILISK_VIEW_LIBS} LABELS short embed)
 
 # GOTM and optional external-model group.
-# basilisk_add_ctest(couette-gotm LABELS gotm) # needs GOTM/CVMix runtime parity check
-# basilisk_add_ctest(entrainment LABELS gotm) # needs GOTM/CVMix runtime parity check
-# basilisk_add_ctest(ows_papa LABELS gotm) # needs GOTM/CVMix runtime parity check
-# basilisk_add_ctest(ows_papa-kpp SOURCE ows_papa.c REF ows_papa-kpp.ref DEFINES KPP=1 LABELS gotm) # needs GOTM/CVMix runtime parity check
+if(BASILISK_USE_GOTM AND TARGET GOTM::gotm)
+  set(OWS_PAPA_FILES
+    ows_papa/heatflux.dat
+    ows_papa/momentumflux.dat
+    ows_papa/sprof.dat
+    ows_papa/sst.dat
+    ows_papa/swr.dat
+    ows_papa/tprof.dat
+  )
+  basilisk_add_ctest(couette-gotm LIBS GOTM::gotm LABELS gotm)
+  basilisk_add_ctest(entrainment LIBS GOTM::gotm LABELS gotm)
+  basilisk_add_ctest(ows_papa LIBS GOTM::gotm FILES ${OWS_PAPA_FILES} LABELS gotm)
+  basilisk_add_ctest(ows_papa-kpp SOURCE ows_papa.c REF ows_papa-kpp.ref DEFINES KPP=1 LIBS GOTM::gotm FILES ${OWS_PAPA_FILES} LABELS gotm)
+endif()
 # basilisk_add_ctest(cvmix SOURCE unmaintained/cvmix.c LABELS gotm) # unmaintained; needs CVMix runtime parity check
 
 # Miscellaneous explicit groups.
