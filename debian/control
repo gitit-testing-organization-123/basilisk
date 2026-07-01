@@ -9,6 +9,8 @@ Build-Depends:
  g++,
  gfortran,
  make,
+ libnetcdf-dev,
+ libnetcdff-dev,
  libglfw3-dev,
  libgl-dev,
 Standards-Version: 4.6.2
@@ -17,7 +19,7 @@ Rules-Requires-Root: no
 
 Package: pacific-basilisk
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, python3, swig, libglfw3-dev, libgl-dev, libopenmpi-dev, ffmpeg, imagemagick, gifsicle, gnuplot
+Depends: ${shlibs:Depends}, ${misc:Depends}, python3, swig, libglfw3-dev, libgl-dev, libopenmpi-dev, libnetcdf-dev, libnetcdff-dev, ffmpeg, imagemagick, gifsicle, gnuplot
 Description: PacIFiC Basilisk toolchain (qcc)
  Basilisk-related tooling for the PacIFiC project, including qcc.
  

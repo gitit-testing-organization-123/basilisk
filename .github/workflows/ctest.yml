@@ -38,6 +38,9 @@ jobs:
             gifsicle \
             gnuplot-nox \
             imagemagick \
+            libgsl-dev \
+            libnetcdf-dev \
+            libnetcdff-dev \
             libopenmpi-dev \
             ninja-build \
             openmpi-bin \

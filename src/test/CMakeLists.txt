@@ -1,5 +1,7 @@
 include(${PROJECT_SOURCE_DIR}/cmake/basilisk_add_ctest.cmake)
 
+find_package(GSL REQUIRED)
+
 # Default-pattern tests from the legacy Makefile.defs inventory that are already
 # being carried explicitly in this CMake port.
 basilisk_add_ctest(adaptbug LABELS short)
@@ -247,8 +249,8 @@ basilisk_add_ctest(galilean_invariance LABELS short multilayer)
 basilisk_add_ctest(stommel-ml LABELS long multilayer)
 basilisk_add_ctest(geo LABELS short multilayer)
 
-# basilisk_add_ctest(nonlinear INCLUDES ${GSL_INCLUDE_DIRS} LIBS GSL::gsl)
-# basilisk_add_ctest(nonlinear-ml SOURCE nonlinear.c REF nonlinear-ml.ref DEFINES ML=1 INCLUDES ${GSL_INCLUDE_DIRS} LIBS GSL::gsl)
+basilisk_add_ctest(nonlinear INCLUDES ${GSL_INCLUDE_DIRS} LIBS GSL::gsl LABELS short)
+basilisk_add_ctest(nonlinear-ml SOURCE nonlinear.c REF nonlinear-ml.ref DEFINES ML=1 INCLUDES ${GSL_INCLUDE_DIRS} LIBS GSL::gsl LABELS short)
 
 basilisk_add_ctest(tsunami LABELS long multilayer)
 

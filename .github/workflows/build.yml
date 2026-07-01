@@ -43,6 +43,8 @@ jobs:
             gifsicle \
             gnuplot-nox \
             imagemagick \
+            libnetcdf-dev \
+            libnetcdff-dev \
             libopenmpi-dev \
             ninja-build \
             openmpi-bin \
@@ -64,6 +66,8 @@ jobs:
             gifsicle \
             gnuplot \
             imagemagick \
+            netcdf \
+            netcdf-fortran \
             ninja \
             open-mpi \
             pkg-config \

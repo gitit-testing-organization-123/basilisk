@@ -21,6 +21,8 @@ BuildRequires:  bison
 BuildRequires:  flex
 BuildRequires:  mesa-libGL-devel
 BuildRequires:  make
+BuildRequires:  netcdf-devel
+BuildRequires:  netcdf-fortran-devel
 
 Requires:       gcc
 Requires:       openmpi
@@ -33,6 +35,8 @@ Requires:       mesa-libGL-devel
 Requires:       libglvnd-devel
 Requires:       glfw-devel
 Requires:       libgfortran
+Requires:       netcdf
+Requires:       netcdf-fortran
  
 %description
 Basilisk

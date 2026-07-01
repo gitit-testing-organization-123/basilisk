@@ -56,6 +56,7 @@
               openmpi
               python3
               swig
+              gsl
               glfw
               libGL
               cudaPackages.cuda_cudart

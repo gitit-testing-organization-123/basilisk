@@ -8,6 +8,7 @@
   gawk,
   bison,
   flex,
+  gsl,
   glfw,
   libGL,
   cudaPackages,
@@ -67,7 +68,10 @@ stdenv.mkDerivation {
   ++ optional gotmSupport netcdffortran;
 
   buildInputs =
-    optionals glslSupport [
+    [
+      gsl
+    ]
+    ++ optionals glslSupport [
       glfw
       libGL
     ]
