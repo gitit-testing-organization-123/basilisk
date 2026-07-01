@@ -49,18 +49,6 @@ jobs:
             python3-dev \
             swig
 
-      - name: Restore compiler cache
-        uses: actions/cache@v4
-        with:
-          path: .ccache
-          key: ccache-${{ runner.os }}-${{ github.ref_name }}-${{ github.run_id }}
-          restore-keys: |
-            ccache-${{ runner.os }}-${{ github.ref_name }}-
-            ccache-${{ runner.os }}-
-
-      - name: Reset compiler cache stats
-        run: ccache --zero-stats
-
       - name: Configure default preset
         run: |
           cmake --preset "Test (Release)" \
@@ -69,10 +57,6 @@ jobs:
 
       - name: Build default preset
         run: cmake --build build/release --parallel
-
-      - name: Show compiler cache stats
-        if: always()
-        run: ccache --show-stats
 
       - name: Run CTest
         env:
@@ -84,9 +68,7 @@ jobs:
           else
             jobs="$(sysctl -n hw.logicalcpu)"
           fi
-          ctest_args=(--test-dir build/release --output-on-failure --parallel "${jobs}")
-          # facefraction3D reaches the 512^3 case and exceeds the practical
-          # memory envelope of GitHub-hosted runners.
+          ctest_args=(--test-dir build/release --output-on-failure)
           ctest_args+=(-E '^facefraction3D$')
           if [[ -n "${CTEST_LABEL}" ]]; then
             ctest_args+=(-L "${CTEST_LABEL}")
