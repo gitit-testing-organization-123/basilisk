@@ -15,6 +15,7 @@ macro number clamp (number x, number a, number b) {
 }
 
 #define swap(type,a,b) do { type _tmp_ = a; a = b; b = _tmp_; } while(false)
+#define device_synchronize()
 
 #include "grid/config.h"
 
@@ -144,9 +145,11 @@ typedef struct {
 #endif
 } ivec;
 typedef double (* BoundaryFunc) (Point, Point, scalar, bool *);
+typedef void (* BoundaryStencilFunc) (Point, Point, scalar, void *);
 typedef struct {
   BoundaryFunc * boundary;
   BoundaryFunc * boundary_homogeneous;
+  BoundaryStencilFunc * boundary_stencil;
   double (* gradient)              (double, double, double);
   void   (* delete)                (scalar);
   char * name;
@@ -404,16 +407,30 @@ const scalar zeroc[] = 0.;
 
 // matrices
 
-void * matrix_new (int n, int p, size_t size)
+void matrix_inverse3 (double m[3][3])
 {
-  void ** m = qmalloc (n, void *);
-  char * a = qmalloc (n*p*size, char);
-  for (int i = 0; i < n; i++)
-    m[i] = a + i*p*size;
-  return m;
+  double det = (m[0][0]*(m[1][1]*m[2][2] - m[2][1]*m[1][2]) - 
+		m[0][1]*(m[1][0]*m[2][2] - m[2][0]*m[1][2]) + 
+		m[0][2]*(m[1][0]*m[2][1] - m[2][0]*m[1][1]));
+  assert (det);
+  double m00 = m[0][0];
+  m[0][0] = (m[1][1]*m[2][2] - m[1][2]*m[2][1])/det;
+  double m01 = m[0][1];
+  m[0][1] = (m[2][1]*m[0][2] - m[0][1]*m[2][2])/det;
+  double m02 = m[0][2];
+  m[0][2] = (m01*m[1][2] - m[1][1]*m[0][2])/det;
+  double m10 = m[1][0];
+  m[1][0] = (m[1][2]*m[2][0] - m[1][0]*m[2][2])/det;
+  double m11 = m[1][1];
+  m[1][1] = (m00*m[2][2] - m[2][0]*m02)/det;
+  m[1][2] = (m10*m02 - m00*m[1][2])/det;
+  double m20 = m[2][0];
+  m[2][0] = (m10*m[2][1] - m[2][0]*m11)/det;
+  m[2][1] = (m20*m01 - m00*m[2][1])/det; 
+  m[2][2] = (m00*m11 - m01*m10)/det;
 }
 
-double matrix_inverse (double ** m, int n, double pivmin)
+double smatrix_inverse (const int n, double m[n][n], double pivmin)
 {
   int indxc[n], indxr[n], ipiv[n];
   int i, icol = 0, irow = 0, j, k, l, ll;
@@ -441,10 +458,10 @@ double matrix_inverse (double ** m, int n, double pivmin)
 	swap (double, m[irow][l], m[icol][l]);
     indxr[i] = irow;
     indxc[i] = icol;
-    if (fabs (m[icol][icol]) <= pivmin)
-      return 0.;
     if (fabs (m[icol][icol]) < minpiv)
       minpiv = fabs (m[icol][icol]);
+    if (minpiv < pivmin)
+      break;
     pivinv = 1.0/m[icol][icol];
     m[icol][icol] = 1.0;
     for (l = 0; l < n; l++) m[icol][l] *= pivinv;
@@ -456,12 +473,27 @@ double matrix_inverse (double ** m, int n, double pivmin)
 	  m[ll][l] -= m[icol][l]*dum;
       }
   }
-  for (l = n - 1; l >= 0; l--) {
-    if (indxr[l] != indxc[l])
-      for (k = 0; k < n; k++)
-	swap (double, m[k][indxr[l]], m[k][indxc[l]]);
-  }
-  return minpiv;
+  if (minpiv >= pivmin)
+    for (l = n - 1; l >= 0; l--) {
+      if (indxr[l] != indxc[l])
+        for (k = 0; k < n; k++)
+          swap (double, m[k][indxr[l]], m[k][indxc[l]]);
+    }
+  return minpiv < pivmin ? 0. : minpiv;
+}
+
+void * matrix_new (int n, int p, size_t size)
+{
+  void ** m = qmalloc (n, void *);
+  char * a = qmalloc (n*p*size, char);
+  for (int i = 0; i < n; i++)
+    m[i] = a + i*p*size;
+  return m;
+}
+
+double matrix_inverse (double ** m, int n, double pivmin)
+{
+  return smatrix_inverse (n, (double (*)[n])m[0], pivmin);
 }
 
 void matrix_free (void * m)
@@ -553,26 +585,4 @@ OMP(omp declare reduction (+ : mat3 :
 			   omp_out.z.z += omp_in.z.z
 			   ))
 
-typedef struct {
-  uint32_t s;
-} Adler32Hash;
-
-static
-inline void a32_hash_init (Adler32Hash * hash)
-{
-  hash->s = 0;
-}
-
-static
-inline void a32_hash_add (Adler32Hash * hash, const void * data, size_t size)
-{
-  const uint8_t * buffer = (const uint8_t*) data;
-  for (size_t n = 0; n < size; n++, buffer++)
-    hash->s = *buffer + (hash->s << 6) + (hash->s << 16) - hash->s;
-}
-
-static
-inline uint32_t a32_hash (const Adler32Hash * hash)
-{
-  return hash->s;
-}
+#include "a32.h"

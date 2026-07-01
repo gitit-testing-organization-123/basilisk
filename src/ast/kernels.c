@@ -8,9 +8,9 @@
 
 typedef struct {
   char * error;
-  bool nolineno;
   int return_macro_index;
   Ast * macroscope;
+  KernelOptions opts;
 } KernelData;
 
 /**
@@ -51,13 +51,19 @@ Ast * implicit_type_cast (Ast * n, Stack * stack)
     return (Ast *) &ast_double;
 
   case sym_types:
-    if (ast_terminal (n->child[0]))
+    if (ast_terminal (n->child[0])) {
+      if (n->child[0]->sym == sym_TYPEDEF_NAME && !strcmp (ast_terminal (n->child[0])->start, "bool"))
+        return (Ast *) &ast_bool;
       return n->child[0];
+    }
     else
       return NULL;
 
   case sym_IDENTIFIER:
     if (n->parent->sym == sym_primary_expression) {
+      if (!strcmp (ast_terminal (n)->start, "true") ||
+          !strcmp (ast_terminal (n)->start, "false"))
+        return (Ast *) &ast_bool;
       Ast * ref = ast_identifier_declaration (stack, ast_terminal (n)->start);
       if (ref) {
 	AstDimensions dim = {0};
@@ -129,8 +135,13 @@ Ast * implicit_type_cast (Ast * n, Stack * stack)
     if (n->child[1]) {
       Ast * a = implicit_type_cast (n->child[0], stack);
       Ast * b = implicit_type_cast (n->child[2], stack);
-      if (a && b && a->sym != b->sym && (a->sym == sym_INT || b->sym == sym_BOOL))
-	type_cast (n->child[2], "int");
+      if (a && b && a->sym != b->sym) {
+        if (a->sym == sym_INT || b->sym == sym_BOOL)
+          type_cast (n->child[2], "int");
+        else if (a->sym == sym_BOOL) {
+          type_cast (n->child[2], "bool");
+        }
+      }
       return a;
     }
     break;
@@ -166,6 +177,7 @@ Ast * implicit_type_cast (Ast * n, Stack * stack)
 	str_prepend (ast_left_terminal (n->child[0])->before, "bool(");
 	ast_after (n->child[0], ")");
       }
+      implicit_type_cast (n->child[4], stack);
       return implicit_type_cast (n->child[2], stack);
     }
     break;
@@ -214,6 +226,27 @@ void kernel (Ast * n, Stack * stack, void * data)
     return;
   
   switch (n->sym) {
+
+  /**
+  ## Floating-point constants
+
+  If 32-bits floats (i.e. single precision) is used, we need to add
+  'f' to all floating-point constants, otherwise they will be
+  automatically considered to be 'double' (64 bits). */
+    
+  case sym_F_CONSTANT: {
+    if (d->opts.fp32) {
+      AstTerminal * t = ast_terminal (n);
+      int len = strlen (t->start);
+      if (t->start[len - 1] != 'f') {
+        len++;
+        t->start = realloc (t->start, len + 1);
+        t->start[len - 1] = 'f';
+        t->start[len] = '\0';
+      }
+    }
+    break;
+  }
     
   case sym_IDENTIFIER: {
 
@@ -242,8 +275,10 @@ void kernel (Ast * n, Stack * stack, void * data)
   ## Assumes that pointers to structures are used through "inout" parameter */
 
   case sym_PTR_OP:
-    ast_terminal(n)->start[0] = '.';
-    ast_terminal(n)->start[1] = '\0';
+    if (d->opts.glsl) {
+      ast_terminal(n)->start[0] = '.';
+      ast_terminal(n)->start[1] = '\0';
+    }
     break;
 
   /**
@@ -421,15 +456,16 @@ void kernel (Ast * n, Stack * stack, void * data)
 
   This forces arrays passed as parameters to functions to behave like
   in C99 i.e. passing by reference (inout) rather than by value.  */
-    
+
   case sym_parameter_declaration:
-    if (ast_schema (n, sym_parameter_declaration,
-		    1, sym_declarator,
-		    0, sym_direct_declarator,
-		    2, sym_assignment_expression))
+    if (d->opts.glsl &&
+        ast_schema (n, sym_parameter_declaration,
+                    1, sym_declarator,
+                    0, sym_direct_declarator,
+                    2, sym_assignment_expression))
       ast_before (n, "inout ");
     break;
-    
+
   /**
   ## Cast expressions */
 
@@ -469,7 +505,8 @@ void kernel (Ast * n, Stack * stack, void * data)
       ast_after (identifier, "[2]"); // fixme: need to set the correct fixed size
       //      ast_print_tree (ast_ancestor (n, 2), stderr, 0, 0, -1);
     }
-    else if ((identifier = ast_schema (ast_ancestor (n, 2), sym_parameter_declaration,
+    else if (d->opts.glsl &&
+             (identifier = ast_schema (ast_ancestor (n, 2), sym_parameter_declaration,
 				       1, sym_declarator,
 				       0, sym_pointer,
 				       0, token_symbol ('*'))) &&
@@ -488,7 +525,6 @@ void kernel (Ast * n, Stack * stack, void * data)
       ast_before (type->child[0], "inout ");
       ast_terminal (identifier)->start[0] = '\0';
     }
-    
     break;
   }
 
@@ -533,7 +569,7 @@ void kernel (Ast * n, Stack * stack, void * data)
     break;
   }
 
-  case sym_unary_operator: {
+  case sym_unary_operator: if (d->opts.glsl) {
     
     /**
     ## Dereference of "inout" parameters */
@@ -573,12 +609,27 @@ void kernel (Ast * n, Stack * stack, void * data)
     }
     break;
   }
-    
+
   case sym_function_call: {
     Ast * identifier = ast_function_call_identifier (n);
     if (!identifier) break;
     AstTerminal * t = ast_terminal (identifier);
     if (!t) break;
+
+    /**
+    ## Assertions 
+    
+    We just remove 'qassert(...)' statements. */
+
+    if (!strcmp (t->start, "qassert")) {
+      Ast * parent = ast_parent (n, sym_expression);
+      assert (parent && parent->parent->sym == sym_expression_statement);
+      parent = parent->parent;
+      ast_destroy (parent->child[0]);
+      parent->child[0] = parent->child[1];
+      parent->child[1] = NULL;
+      break;
+    }    
     
     /**
     ## Field assignments 
@@ -602,7 +653,7 @@ void kernel (Ast * n, Stack * stack, void * data)
     if (!(identifier = ast_identifier_declaration (stack, t->start))) {
       char s[1000];
       snprintf (s, 999, "\\n@error %s:%d: GLSL: error: unknown function '%s'\\n",
-		t->file, d->nolineno ? 0 : t->line, t->start);
+		t->file, d->opts.nolineno ? 0 : t->line, t->start);
       d->error = strdup (s);
       return;
     }
@@ -702,16 +753,16 @@ static void postmacros (Ast * n, Stack * stack, void * data)
 {
   if (n->sym == sym_statement || n->sym == sym_function_call) {
     KernelData * d = data;
-    ast_macro_replacement (n, n, stack, d->nolineno, 1, false, &d->return_macro_index, d->macroscope);
+    ast_macro_replacement (n, n, stack, d->opts.nolineno, 1, false, true, &d->return_macro_index, d->macroscope);
   }
 }
 
-char * ast_kernel (Ast * n, char * argument, bool nolineno, Ast * macroscope)
+char * ast_kernel (Ast * n, char * argument, KernelOptions opts, Ast * macroscope)
 {
   AstRoot * root = ast_get_root (n);
   Stack * stack = root->stack;
   stack_push (stack, &n);
-  KernelData d = {0, nolineno, 0, macroscope};
+  KernelData d = {0, 0, macroscope, opts};
   Ast * statement = n->sym == sym_function_definition ?
     ast_copy (n) : ast_copy (ast_child (n, sym_statement));
   ast_traverse (statement, stack, postmacros, &d);
@@ -721,7 +772,7 @@ char * ast_kernel (Ast * n, char * argument, bool nolineno, Ast * macroscope)
     str_append (argument, "\"", d.error, "\"");
   else {
     str_append (argument, "\"");
-    argument = stringify (statement, argument, nolineno);
+    argument = stringify (statement, argument, opts.nolineno);
     str_append (argument, "\"");
   }
   free (d.error);

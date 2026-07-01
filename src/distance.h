@@ -437,16 +437,22 @@ static void refine_distance (Point point, scalar d)
 
 static void restriction_distance (Point point, scalar d) {}
 
+#if TREE
 static void coarsen_distance (Point point, scalar d) {
   scalar surface = d.surface;
   foreach_child()
     free (double_to_pointer (surface[]));
 }
+#endif // TREE
 
 static void delete_distance (scalar d) {
   scalar surface = d.surface;
-  foreach_level (0)
-    free (*((void **)double_to_pointer (surface[])));
+  bool only_once = true;
+  foreach_level (0, serial)
+    if (only_once) {
+      free (*((void **)double_to_pointer (surface[])));
+      only_once = false;
+    }
   for (int l = 0; l <= depth(); l++)
     foreach_level (l)
       free (double_to_pointer (surface[]));
@@ -462,12 +468,11 @@ void distance (scalar d, coord * p)
   surface = new scalar;
   surface.restriction = no_restriction;
 #if TREE
-  surface.prolongation = no_restriction;
   surface.refine = no_restriction; // handled by refine_distance()
-  d.prolongation = refine_bilinear;
+  set_prolongation (surface, no_restriction);
+  set_prolongation (d, refine_bilinear);
   d.refine = refine_distance;  
   d.coarsen = coarsen_distance;
-  d.dirty = true;
 #endif
   d.surface = surface;
   d.delete = delete_distance;

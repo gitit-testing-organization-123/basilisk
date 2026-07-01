@@ -14,7 +14,38 @@
       "binaryDir": "${sourceDir}/build/release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_INSTALL_PREFIX": "${sourceDir}/install/release"
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/install/release",
+        "BASILISK_USE_KDT": "On",
+        "BASILISK_USE_PPR": "On",
+        "BASILISK_USE_CVMIX": "On",
+        "BASILISK_USE_GOTM": "On"
+      }
+    },
+    {
+      "name": "GLSL",
+      "displayName": "GLSL",
+      "description": "Release build with system default generator.",
+      "inherits": "Default",
+      "cacheVariables": {
+        "BASILISK_USE_GLSL": "On"
+      }
+    },
+    {
+      "name": "CUDA",
+      "displayName": "CUDA",
+      "description": "Release build with system default generator.",
+      "inherits": "Default",
+      "cacheVariables": {
+        "BASILISK_USE_CUDA": "On"
+      }
+    },
+    {
+      "name": "HIP",
+      "displayName": "HIP",
+      "description": "Release build with system default generator.",
+      "inherits": "Default",
+      "cacheVariables": {
+        "BASILISK_USE_HIP": "On"
       }
     },
     {
@@ -26,6 +57,14 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/install/debug"
+      }
+    }, {
+      "name": "Test (Release)",
+      "displayName": "Test (Release)",
+      "description": "Build with debug info and no optimization.",
+      "inherits": "Default",
+      "cacheVariables": {
+        "BASILISK_USE_TEST": "On"
       }
     }
   ],

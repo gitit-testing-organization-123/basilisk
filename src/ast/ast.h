@@ -54,7 +54,7 @@ void      ast_identifier_print (Ast * identifier, FILE * fp);
 void      ast_stack_print      (Stack * stack, FILE * fp);
 const
 char *    ast_crop_before (const char * s);
-double    ast_evaluate_constant_expression (const Ast * n);
+double    ast_evaluate_constant_expression (const Ast * n, Stack * stack);
 
 static inline Ast * ast_last_child (const Ast * n)
 {
@@ -297,20 +297,26 @@ typedef struct {
 Ast * ast_identifier_type      (Ast * n, AstDimensions * d, Stack * stack);
 Ast * ast_base_type            (Ast * type, AstDimensions * d, Stack * stack);
 Ast * ast_get_array_dimensions (Ast * direct_declarator, int symbol, AstDimensions * d, int nd, Stack * stack);
+Ast * ast_variable_array_size  (Ast * n, Stack * stack);
 
 /**
 ## Kernels */
 
 void ast_diagonalize (Ast * n, Stack * stack, void * field);
 char * ast_external_references (Ast * n, char * references, Stack * functions);
-char * ast_kernel              (Ast * n, char * argument, bool nolineno, Ast * macroscope);
+
+typedef struct { bool nolineno, glsl, fp32; } KernelOptions;
+
+char * ast_kernel              (Ast * n, char * argument, KernelOptions opts,
+                                Ast * macroscope);
 
 /**
 ## Macros */
 
 Ast * ast_is_macro_declaration (const Ast * function_declaration);
 void ast_macro_replacement (Ast * statement, Ast * initial, Stack * stack,
-			    bool nolineno, int postmacros, bool expand_definitions,
+			    bool nolineno, int postmacros,
+                            bool expand_definitions, bool expand_variable_size_arrays,
 			    int * return_macro_index, Ast * scope);
 
 /**
@@ -332,6 +338,6 @@ Called by [qcc](/src/qcc.c) to trigger the translation. */
 AstRoot * endfor (FILE * fin, FILE * fout,
 		  const char * grid, int dimension,
 		  bool nolineno, bool progress, bool catch,
-		  bool parallel, bool cpu, bool gpu,
+		  bool parallel, bool cpu, bool gpu, bool glsl, bool fp32,
 		  bool prepost,
 		  FILE * swigfp, char * swigname);

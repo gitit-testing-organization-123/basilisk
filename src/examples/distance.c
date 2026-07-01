@@ -24,7 +24,7 @@ int main()
   system ("test -f distance.stl || "
 	  "(wget http://www.cc.gatech.edu/data_files/large_models/horse.ply.gz && "
 	  "gunzip -f horse.ply.gz && "
-	  "meshlabserver -i horse.ply -o distance.stl)");
+	  "DISPLAY=:0 meshlabserver -i horse.ply -o distance.stl)");
 
   /**
   We read the STL file, compute the bounding box of the model and set
@@ -51,7 +51,7 @@ int main()
 
   scalar d[];
   distance (d, p);
-  while (adapt_wavelet ({d}, (double[]){5e-4*L0}, 10).nf);
+  while (adapt_wavelet ({d}, {5e-4*L0}, 10).nf);
 
   /**
   We display an isosurface of the distance function coloured with the

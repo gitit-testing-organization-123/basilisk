@@ -60,7 +60,7 @@ If any of these assumptions is violated, the most likely result will
 be a low-level memory fault (i.e. segmentation fault, stack smashing
 etc.). */
 
-#pragma autolink -L$BASILISK/cvmix -lcvmixc -lgfortran
+#pragma autolink -lcvmixc -lcvmix -lgfortran
 
 /**
 We define a data structure describing the array descriptor of gfortran

@@ -41,9 +41,13 @@ double myfunc5 (double x)
   return x*x;
 }
 
+attribute {
+  double u;
+}
+
 void myfunc6 (Point point, scalar s)
 {
-  s[] = v.x[];
+  s[] = v.x[]*v.x.u;
 }
 
 double vv = 3;
@@ -57,6 +61,57 @@ void myfunc8 (scalar s)
 {
   foreach()
     s[] = 0;
+}
+
+double myfunc9 (const int n, double a[n])
+{
+  return a[0];
+}
+
+void myfunc10 (double a[3])
+{
+  a[2] = 1.;
+}
+
+double myfunc11 (double a[3])
+{
+  return myfunc9 (3, a);
+}
+
+static
+double myfunc12 (int n, double a[n])
+{
+  a[2] = 3;
+  return myfunc9 (n, a);
+}
+
+void myfunc13 (int n, double a[n])
+{
+  a[0] = 2;
+  return;
+}
+
+double myfunc14 (const int n)
+{
+  int a[n];
+  a[0] = 1;
+  return a[0];
+}
+
+double myfunc15()
+{
+  const int m = 4;
+  int a[m];
+  a[0] = 1;
+  return a[0];
+}
+
+double myfunc16 (int n, const int m)
+{
+  int a[m];
+  a[0] = 1;
+  n++;
+  return a[0];
 }
 
 attribute {
@@ -551,6 +606,56 @@ int main (int argc, char * argv[])
 	v.x[] = v0.x = v1.x = v2.x;
     }
   }
+
+  /**
+  ## Arrays are passed by reference (as in C) */
+
+  {
+    init_grid (1);
+    foreach() {
+      double a[3] = {0,0,0};
+      myfunc10 (a);
+      s[] = a[2];
+    }
+    foreach (serial)
+      assert (s[] == 1.);
+  } 
+  
+  /**
+  ## Variable-size (multi-dimensional) arrays */
+  
+  {
+    init_grid (1);
+    foreach() {
+      const int n = 3; // must be a const
+      double a[n*n][n+1];
+      s[] = a[2][0];
+      double b[3] = {0,0,0};
+      s[] = myfunc9 (3, b);
+      s[] = myfunc11 (b);
+      s[] = myfunc12 (3, b);
+      myfunc13 (3, b);
+      myfunc14 (3);
+      myfunc15 ();
+      int m = 56;
+      myfunc16 (m, 2);
+      s[] = m;
+    }
+    foreach(serial)
+      fprintf (stderr, "35) %g\n", s[]);
+  }
+
+  /**
+  ## Automatic type cast */
+
+  {
+    init_grid (1);
+    int i = 2;
+    foreach() {
+      bool b = i;
+      s[] = b;
+    }
+  }  
   
   /**
   ## Other tests */
@@ -569,6 +674,8 @@ int main (int argc, char * argv[])
   scalar p[], tmp[];
   reset ({p}, 0.);
 
+  device_synchronize(); // make sure rendering is done on the device
+  
   timer t = timer_start();
   int iter;
   for (iter = 0; iter < 40000*64/N; iter++) {
@@ -593,9 +700,7 @@ int main (int argc, char * argv[])
 #endif
   }
 
-#if _GPU
-  glFinish(); // make sure rendering is done on the GPU
-#endif
+  device_synchronize(); // make sure rendering is done on the device
   
   double elapsed = timer_elapsed (t);
   fprintf (stdout, "N: %d elapsed: %g speed: %g\n",

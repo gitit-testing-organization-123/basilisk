@@ -323,7 +323,8 @@ Color colormap_color (double cmap[NCMAP][3],
     i = val*(NCMAP - 1);
     coef = val*(NCMAP - 1) - i;
   }
-  assert (i >= 0 && i < NCMAP - 1);
+  if (i < 0 || i >= NCMAP - 1)
+    return (Color){99,55,43}; // brown is an error
   unsigned char * c1 = (unsigned char *) &c;
   for (int j = 0; j < 3; j++)
     c1[j] = 255*(cmap[i][j]*(1. - coef) + cmap[i + 1][j]*coef);
@@ -1109,8 +1110,8 @@ void dump (const char * file = "dump",
   subtree_size (size, false);
 #if _GPU
   for (scalar s in slist)
-    s.input = 1;
-  gpu_cpu_sync (slist, GL_MAP_READ_BIT, __FILE__, LINENO);
+    s.stencil.io |= s_input;
+  gpu_cpu_sync (slist, GPU_READ, __FILE__, LINENO);
 #endif // _GPU
   foreach_cell() {
     unsigned flags = is_leaf(cell) ? leaf : 0;
@@ -1154,10 +1155,13 @@ void dump (const char * file = "dump",
   strcpy (name, file);
   if (!unbuffered)
     strcat (name, "~");
-  FILE * fh = fopen (name, "w");
-  if (fh == NULL) {
-    perror (name);
-    exit (1);    
+  FILE * fh = NULL;
+  if (pid() == 0) {
+    fh = fopen (name, "w");
+    if (fh == NULL) {
+      perror (name);
+      exit (1);
+    }
   }
 
   scalar * dlist = dump_list (list, zero);
@@ -1165,22 +1169,34 @@ void dump (const char * file = "dump",
   scalar * slist = list_concat ({size}, dlist); free (dlist);
   struct DumpHeader header = { t, list_len(slist), iter, depth(), npe(),
 			       dump_version };
-
-#if MULTIGRID_MPI
   foreach_dimension()
     header.n.x = Dimensions.x;
+  
+#if MULTIGRID_MPI
   MPI_Barrier (MPI_COMM_WORLD);
 #endif
 
-  if (pid() == 0)
+  if (pid() == 0) {
     dump_header (fh, &header, slist);
+    fflush (fh);
+  }
   
+  MPI_Barrier (MPI_COMM_WORLD);
+
+  if (pid() != 0) {
+    fh = fopen (name, "r+");
+    if (fh == NULL) {
+      perror (name);
+      exit (1);
+    }
+  }
+
   scalar index = {-1};
   
   index = new scalar;
   z_indexing (index, false);
-  int cell_size = sizeof(unsigned) + header.len*sizeof(double);
-  int sizeofheader = sizeof(header) + 4*sizeof(double);
+  long cell_size = sizeof(unsigned) + header.len*sizeof(double);
+  long sizeofheader = sizeof(header) + 4*sizeof(double);
   for (scalar s in slist)
     sizeofheader += sizeof(unsigned) + sizeof(char)*strlen(s.name);
   long pos = pid() ? 0 : sizeofheader;
@@ -1323,8 +1339,8 @@ bool restore (const char * file = "dump",
 
 #if MULTIGRID_MPI
   long cell_size = sizeof(unsigned) + header.len*sizeof(double);
-  long offset = pid()*((1 << dimension*(header.depth + 1)) - 1)/
-    ((1 << dimension) - 1)*cell_size;
+  long offset = pid()*((1L << dimension*(header.depth + 1)) - 1)/
+    ((1L << dimension) - 1)*cell_size;
   if (fseek (fp, offset, SEEK_CUR) < 0) {
     perror ("restore(): error while seeking");
     exit (1);
@@ -1377,7 +1393,7 @@ bool restore (const char * file = "dump",
       s.gpu.stored = 1; // stored on CPU
 #endif // _GPU
   for (scalar s in all)
-    s.dirty = true;
+    set_dirty_stencil (s);
 #endif // ! (TREE && _MPI)
   
   scalar * other = NULL;
@@ -1405,6 +1421,6 @@ bool restore (const char * file = "dump",
 
 #endif // MULTIGRID
 
-#if _GPU
+#if _GPU && !_CUDA
 # include "grid/gpu/output.h"
 #endif
