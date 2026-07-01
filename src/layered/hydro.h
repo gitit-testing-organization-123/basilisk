@@ -47,12 +47,7 @@ in which case the tracers list is empty). */
 
 scalar zb[], eta, h;
 vector u;
-double G = 1., CFL_H = 1e40;
-#if SINGLE_PRECISION
-double dry = 1e-6;
-#else
-double dry = 1e-12;
-#endif
+double G = 1., dry = 1e-12, CFL_H = 1e40;
 double (* gradient) (double, double, double) = minmod2;
 
 scalar * tracers = NULL, eta_r;
@@ -95,9 +90,9 @@ event defaults0 (i = 0)
   h = new scalar[nl];
   h.gradient = gradient;
 #if TREE
-  h.refine = refine_linear;
-  set_prolongation (h, refine_linear);
-  set_restriction (h, restriction_volume_average);
+  h.refine = h.prolongation = refine_linear;
+  h.restriction = restriction_volume_average;
+  h.dirty = true;
 #endif
   eta_r = eta = new scalar;
   reset ({h, zb}, 0.);
@@ -108,13 +103,14 @@ event defaults0 (i = 0)
   zb.gradient = gradient;
   eta.gradient = gradient;
 #if TREE
-  zb.refine = refine_linear;
-  set_prolongation (zb, refine_linear);
-  set_restriction (zb, restriction_volume_average);
-  set_prolongation (eta, refine_linear);
+  zb.refine = zb.prolongation = refine_linear;
+  zb.restriction = restriction_volume_average;
+  zb.dirty = true;
+  eta.prolongation = refine_linear;
   eta.refine  = refine_eta;
-  set_restriction (eta, restriction_eta);
+  eta.restriction = restriction_eta;
   eta.depends = list_copy ({zb,h});
+  eta.dirty = true;
 #endif // TREE
 }
 
@@ -150,9 +146,9 @@ event defaults (i = 0)
   for (scalar s in tracers) {
     s.gradient = gradient;
 #if TREE
-    s.refine = refine_linear;
-    set_prolongation (s, refine_linear);
-    set_restriction (s, restriction_volume_average);
+    s.refine = s.prolongation = refine_linear;
+    s.restriction = restriction_volume_average;
+    s.dirty = true;
 #endif
   }
 
@@ -296,7 +292,6 @@ event face_fields (i++, last)
 The function below approximates the advection terms using estimates of
 the face fluxes $h\mathbf{u}$ and face heights $h_f$. */
 
-trace
 void advect (scalar * tracers, face vector hu, face vector hf, double dt)
 {
 
@@ -642,8 +637,9 @@ We overload the `conserve_elevation()` function. */
 void conserve_layered_elevation (void)
 {
   h.refine  = refine_layered_elevation;
-  set_prolongation (h, prolongation_elevation);
-  set_restriction (h, restriction_elevation);
+  h.prolongation = prolongation_elevation;
+  h.restriction = restriction_elevation;
+  h.dirty = true; // boundary conditions need to be updated
 }
 
 #define conserve_elevation() conserve_layered_elevation()

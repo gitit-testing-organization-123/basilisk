@@ -431,8 +431,9 @@ void heights (scalar c, vector h)
   levels. */
   
   foreach_dimension() {
-    set_prolongation (h.x, no_data);
-    set_restriction (h.x, no_restriction);
+    h.x.prolongation = no_data;
+    h.x.restriction = no_restriction;
+    h.x.dirty = true;
   }
 
   /**

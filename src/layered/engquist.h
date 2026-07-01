@@ -16,11 +16,11 @@ The strength of the filter is controlled by the filtering timescale
 interpreted as the timescale during which a disturbance must not move
 to be seen by the filter. */
 
-double efilter = 0.;
+double filter = 0.;
 
 event viscous_term (i++)
 {
-  if (efilter > 0.) {
+  if (filter > 0.) {
     foreach()
       foreach_dimension() {
         double Hm = 0., H = 0., Hp = 0.;
@@ -62,15 +62,17 @@ event viscous_term (i++)
 	    We apply only part of the correction, weighted by the
 	    timescale. */
 	    
-	    eta[] += min(dt/efilter, 1.)*a*d;
+	    eta[] += min(dt/filter, 1.)*a*d;
 	    double Hnew = eta[] - zb[];
-	    if (Hnew > dry)
+	    if (Hnew > dry) {
 	      foreach_layer()
 		h[] *= Hnew/H;
-	    else
+	    }
+	    else {
 	      for (scalar s in tracers)
 		foreach_layer()
 		  s[] = 0.;
+	    }
 	  }
 	}
       }

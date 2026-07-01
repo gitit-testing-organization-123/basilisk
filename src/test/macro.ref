@@ -31,6 +31,7 @@ other 2 1
 0.75 0.5 1.25 2.5
 1 0.75 1.75 3.5
 0.75 1 1.75 3.5
+i == 0
 i != 0
 m1
 m1bis
@@ -39,5 +40,3 @@ rmacro test
 rmacro1
 rmacro test
 s 1 s1 2 
-s 3 s1 4 
-overloaded m3

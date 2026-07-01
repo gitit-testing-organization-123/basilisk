@@ -43,7 +43,6 @@ display local information during interpretation.
 #include <limits.h>
 #include "ast.h"
 #include "symbols.h"
-#include "paths.h"
 
 #include "khash.h"
 KHASH_MAP_INIT_INT64(INT64, void *)
@@ -1156,13 +1155,11 @@ Value * binary_operation (Ast * n, Stack * stack)
     res = va << vb;				\
   else if (op == sym_RIGHT_OP)			\
     res = va >> vb;				\
-  else if (op == token_symbol('&') ||           \
-           ast_schema (n->child[1], sym_assignment_operator, 0, sym_AND_ASSIGN)) \
-    res = va & vb;                              \
+  else if (op == token_symbol('&'))		\
+    res = va & vb;				\
   else if (op == token_symbol('^'))		\
     res = va ^ vb;				\
-  else if (op == token_symbol('|') ||           \
-           ast_schema (n->child[1], sym_assignment_operator, 0, sym_OR_ASSIGN)) \
+  else if (op == token_symbol('|'))		\
     res = va | vb;				\
   else if (op == token_symbol('%'))		\
     res = vb ? va % vb : 0;			\
@@ -1224,16 +1221,11 @@ Value * binary_operation (Ast * n, Stack * stack)
     type res;								\
     bool set;								\
     BITWISE_OPERATION (res, va, vb);					\
-    if (set) {                                                          \
-      Value * value;                                                    \
-      if (n->sym == sym_assignment_expression)				\
-	value_set_write (a, stack), value = ast_binary_operation_hook (n, stack, a, b, a); \
-      else {                                                            \
-        value = new_value (stack, n, (Ast *) &ast_##type, 0);           \
-        if (is_constant_expression (a) && is_constant_expression (b))	\
-          set_constant_expression (value);				\
-        value = ast_binary_operation_hook (n, stack, a, b, value);	\
-      }                                                                 \
+    if (set) {								\
+      Value * value = new_value (stack, n, (Ast *) &ast_##type, 0);	\
+      if (is_constant_expression (a) && is_constant_expression (b))	\
+	set_constant_expression (value);				\
+      value = ast_binary_operation_hook (n, stack, a, b, value);	\
       SET_VALUE (value, res);						\
       if ((value_flags (a) & unset) || (value_flags (b) & unset))	\
 	value_set_flags (value, unset);					\
@@ -1303,10 +1295,8 @@ Value * constant_value (Ast * n, Stack * stack)
 #if 0
     {
       AstTerminal * t = ast_terminal (n);
-      char * events = qcc_path_join (qcc_basilisk_root (), "grid/events.h");
-      if (events && t->file && !strcmp (t->file, events))
+      if (t->file && !strcmp (t->file, BASILISK "/grid/events.h"))
 	fprintf (stderr, "%s:%d: %s %p %p\n", t->file, t->line, t->start, n, v);
-      free (events);
     }
 #endif
     ast_terminal ((Ast *)v)->value = ast_terminal (n)->value = v;
@@ -1358,10 +1348,8 @@ static Ast * get_array_dimensions (Ast * direct_declarator, int symbol, Dimensio
       s = run (nelem, stack);
       if (!s)
 	return message (NULL, nelem, "undefined array size '%s'\n", warning_verbosity, stack);
-#if 0      
       if (value_flags (s) & unset)
 	return message (NULL, nelem, "array size '%s' not set\n", warning_verbosity, stack);
-#endif
     }
     else if (ast_schema (direct_declarator->parent, symbol,
 			 1, token_symbol (']')) ||
@@ -1374,8 +1362,6 @@ static Ast * get_array_dimensions (Ast * direct_declarator, int symbol, Dimensio
     if (s) {
       bool error = false;
       d->dimension[nd] = value_int (s, &error, stack);
-      if (d->dimension[nd] < 0)
-        d->dimension[nd] = 0;
       d->size *= d->dimension[nd];
       if (error)
 	return NULL;
@@ -1568,12 +1554,8 @@ Ast * struct_size (Ast * type,
   }
   *size = 0;
   int i = 0;
-  if (!list)
-    return NULL;
   foreach_item_r (list, sym_struct_declaration, item) {
     Ast * list = ast_child (item, sym_struct_declarator_list);
-    if (!list)
-      return NULL;
     foreach_item_r (list, sym_struct_declarator, item) {
       if (ast_child (item, sym_constant_expression))
 	return not_implemented (NULL, type, stack);
@@ -1859,7 +1841,7 @@ Value * value_from_type (Ast * n, Ast * type, Dimensions * d, Ast * initializer,
 
   Value * v;
   if (d->dimension) {
-    //    assert (d->dimension[0] >= 0);
+    assert (d->dimension[0] >= 0);
     d->size *= type_size (d->pointer, type, stack);
     for (int * i = d->dimension; *i >= 0; i++)
       d->pointer++; 
@@ -2749,17 +2731,15 @@ Value * ast_run_node (Ast * n, Stack * stack)
 		init_point_variables (stack);
 	      Ast * function_declaration = ast_child (function_definition, sym_function_declaration);
 	      run (function_declaration, stack);
-              int arg = 0;
-	      foreach_item_r (parameters, sym_parameter_declaration, parameter) {
+	      foreach_item (parameters, 2, parameter)
 		if (ast_schema (parameter, sym_parameter_declaration,
 				1, sym_declarator) &&
-                    !assign (parameter, run (parameter, stack), v[arg++], stack)) {
-                  d->scope--;
-                  ast_pop_scope (stack, function_definition->parent);
-                  restore_locals (stack, locals);
-                  return message (scope, parameter, "could not assign parameter '%s'\n", warning_verbosity, stack);
-                }
-              }
+		    !assign (parameter, run (parameter, stack), v[--narg], stack)) {
+		  d->scope--;
+		  ast_pop_scope (stack, function_definition->parent);
+		  restore_locals (stack, locals);
+		  return message (scope, parameter, "could not assign parameter '%s'\n", warning_verbosity, stack);
+		}
 	      d->scope--;
 	      // fixme: deal with ellipsis....
 	    }
@@ -3382,16 +3362,10 @@ int ast_run (AstRoot * root, Ast * n, int verbosity, int maxcalls, void * user_d
   void * prev = stack_set_push (stack, push);
   stack_push (stack, &root);
   if (n) {
-    char * declarations_path = qcc_path_join (qcc_basilisk_root (), "ast/interpreter/declarations.h");
-    char * internal_path = qcc_path_join (qcc_basilisk_root (), "ast/interpreter/internal.h");
-    char * overload_path = qcc_path_join (qcc_basilisk_root (), "ast/interpreter/overload.h");
-    AstRoot * interpreter = add_external_declarations (root, declarations_path);
-    AstRoot * internal = add_external_declarations (root, internal_path);
+    AstRoot * interpreter = add_external_declarations (root, BASILISK "/ast/interpreter/declarations.h");
+    AstRoot * internal = add_external_declarations (root, BASILISK "/ast/interpreter/internal.h");
     run_external_declarations ((Ast *) root, stack);
-    AstRoot * overload = add_external_declarations (root, overload_path);
-    free (declarations_path);
-    free (internal_path);
-    free (overload_path);
+    AstRoot * overload = add_external_declarations (root, BASILISK "/ast/interpreter/overload.h");
     run (n, stack);
     if (after_run)
       after_run (n, stack);

@@ -83,7 +83,7 @@ splot 'kepsilon' u ($1/3600.):2:(log10($6))
 ~~~
 */
 
-#include "grid/multigrid1D.h"
+#include "grid/multigrid.h"
 #include "layered/hydro.h"
 #include "layered/gotm.h"
 

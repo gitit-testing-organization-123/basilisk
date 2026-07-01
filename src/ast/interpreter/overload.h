@@ -159,11 +159,10 @@ See the definition of foreach_stencil() in [/src/grid/stencils.h](). */
 
 static void _stencil()
 {
-  if (baseblock)
-    for (scalar s = baseblock[0], * i = baseblock; s.i >= 0; i++, s = *i) {
-      _attribute[s.i].stencil.io = 0;
-      _attribute[s.i].stencil.width = 0;
-    }
+  if (baseblock) for (scalar s = baseblock[0], * i = baseblock; s.i >= 0; i++, s = *i) {
+    _attribute[s.i].input = _attribute[s.i].output = false;
+    _attribute[s.i].width = 0;
+  }
 }
 
 /**
@@ -175,14 +174,13 @@ static void _end_stencil()
   
   if (baseblock)
     for (scalar s = baseblock[0], * i = baseblock; s.i >= 0; i++, s = *i) {
-      bool write = (_attribute[s.i].stencil.io & s_output),
-        read = (_attribute[s.i].stencil.io & s_input);
+      bool write = _attribute[s.i].output, read = _attribute[s.i].input;
 
       /**
       If the field is read and dirty, we need to check if boundary
       conditions need to be applied. */
       
-      if (read && scalar_is_dirty (s) && _attribute[s.i].stencil.width > 0)
+      if (read && scalar_is_dirty (s) && _attribute[s.i].width > 0)
 	listc = list_append (listc, s);
 
       /**
@@ -207,7 +205,7 @@ static void _end_stencil()
 	  if (_attribute[s.i].boundary[d] != periodic_bc)
 	    val(s,0,0,0) == _attribute[s.i].boundary[d] (point, point, s, NULL);
     for (scalar s = listc[0], * i = listc; s.i >= 0; i++, s = *i)
-      _attribute[s.i].stencil.bc |= s_centered;
+      _attribute[s.i].dirty = false;
     free (listc);
   }
   
@@ -217,7 +215,7 @@ static void _end_stencil()
   
   if (dirty) {
     for (scalar s = dirty[0], * i = dirty; s.i >= 0; i++, s = *i)
-      set_dirty_stencil (s);
+      _attribute[s.i].dirty = true;
     free (dirty);
   }
 }

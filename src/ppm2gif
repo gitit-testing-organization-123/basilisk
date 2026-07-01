@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
 CONVERT="`which convert`"
 GIFSICLE="`which gifsicle`"

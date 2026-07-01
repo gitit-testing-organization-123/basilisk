@@ -2,28 +2,6 @@
 
 include(CMakeFindDependencyMacro)
 find_dependency(Threads)
-if(@BASILISK_USE_GLSL@)
-  find_dependency(glfw3)
-endif()
-if(@BASILISK_USE_CUDA@)
-  find_dependency(CUDAToolkit)
-endif()
-if(@BASILISK_USE_HIP@)
-  find_dependency(hip CONFIG)
-  find_dependency(hiprtc CONFIG)
-endif()
-if(@BASILISK_USE_CVMIX@ AND NOT TARGET CVMix::cvmix)
-  add_library(CVMix::cvmix STATIC IMPORTED)
-  set_target_properties(CVMix::cvmix PROPERTIES
-    IMPORTED_LOCATION "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_LIBDIR@/libcvmix.a"
-  )
-endif()
-
-set(BASILISK_INSTALL_PREFIX "${PACKAGE_PREFIX_DIR}")
-set(BASILISK_BINDIR "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_BINDIR@")
-set(BASILISK_LIBDIR "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_LIBDIR@")
-set(BASILISK_INCLUDE_DIR "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_INCLUDEDIR@/basilisk")
 
 include("${CMAKE_CURRENT_LIST_DIR}/basiliskTargets.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/basilisk_add_executable.cmake")
-include("${CMAKE_CURRENT_LIST_DIR}/basilisk_add_ctest.cmake")

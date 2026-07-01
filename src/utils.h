@@ -107,7 +107,9 @@ This function writes timing statistics on standard output. */
 
 void timer_print (timer t, int i, size_t tnc)
 {
-  device_synchronize(); // make sure rendering is done on the device  
+#if _GPU
+  glFinish(); // make sure rendering is done on the GPU
+#endif
   timing s = timer_timing (t, i, tnc, NULL);
   fprintf (fout,
 	   "\n# " GRIDNAME 
@@ -388,15 +390,6 @@ void fields_stats (scalar * list = all)
     fprintf (ferr, "# %12s: %12g %12g %12g %12g\n",
 	     s.name, ss.min, ss.sum/ss.volume, ss.stddev, ss.max);
   }
-}
-
-/**
-Optionally, we can reset the performance timer, for example to profile
-only a section of the code. */
-
-void reset_perf() {
-  perf.nc = 0, perf.tnc = 0;
-  perf.gt = timer_start();
 }
 
 #include "output.h"

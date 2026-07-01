@@ -65,9 +65,11 @@ double myreturn2 (Point point, double expr)
 macro
 void withreturn (int i)
 {
-  if (i)
+  if (i) {
     fprintf (stderr, "i != 0\n");
-  return;
+    return;
+  }
+  fprintf (stderr, "i == 0\n");  
 }
 
 macro m1() {
@@ -109,44 +111,12 @@ macro rmacro()
 }
 
 macro lmacro (scalar * list, double * array)
-{{
+{
   scalar * l = (scalar *) list;
   double * a = array;
   for (scalar s in l)
     fprintf (stderr, "%s %g ", s.name, *a++);
   fputc ('\n', stderr);
-}}
-
-macro lmacro1 (scalar * list, double * array, int dummy = 1)
-{{
-  scalar * l = (scalar *) list;
-  double * a = array;
-  for (scalar s in l)
-    fprintf (stderr, "%s %g ", s.name, *a++);
-  fputc ('\n', stderr);
-}}
-
-/**
-## Forward function declarations
-
-In this test, the pm3() function will be expanded in fm3() from the
-overloaded definition of m3(). Since pm3() is defined after fm3() it
-needs to be declared forward of the expansion in fm3(). */
-
-auto macro m3() {
-  fprintf (stderr, "m3\n");
-}
-
-void fm3() {
-  m3();
-}
-
-void pm3() {
-  fprintf (stderr, "overloaded m3\n");
-}
-
-macro m3() {
-  pm3();
 }
 
 int main()
@@ -194,7 +164,4 @@ int main()
     fprintf (stderr, "rmacro test\n");
 
   lmacro ({s, s1}, {1, 2});
-  lmacro1 ({s, s1}, {3, 4});
-
-  fm3();
 }

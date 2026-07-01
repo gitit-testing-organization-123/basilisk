@@ -8,6 +8,11 @@ functions](heights.h).
 We first overload the default function used to compute the normal,
 defined in [fractions.h](). */
 
+coord interface_normal (Point point, scalar c);
+
+#undef interface_normal
+#define interface_normal(point, c) interface_normal (point, c)
+
 #include "fractions.h"
 #include "curvature.h"
 
@@ -16,16 +21,12 @@ We will compute the normal using height-functions instead. If this is
 not possible (typically at low resolutions) we revert back to
 the Mixed-Youngs-Centered approximation. */
 
-coord height_myc_normal (Point point, scalar c)
+coord interface_normal (Point point, scalar c)
 {
   coord n;
   if (!c.height.x.i || (n = height_normal (point, c, c.height)).x == nodata)
     n = mycs (point, c);
   return n;
-}
-
-macro coord interface_normal (Point point, scalar c) {
-  return height_myc_normal (point, c);
 }
 
 /**

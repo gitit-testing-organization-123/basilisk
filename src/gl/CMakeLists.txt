@@ -43,20 +43,20 @@ target_link_libraries(fb_tiny
     m
 )
 
-add_library(ws STATIC
+add_library(wsserver STATIC
   ../wsServer/src/ws.c
   ../wsServer/src/base64/base64.c
   ../wsServer/src/handshake/handshake.c
   ../wsServer/src/sha1/sha1.c
 )
 
-target_include_directories(ws
+target_include_directories(wsserver
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../wsServer/include>
     $<INSTALL_INTERFACE:include/basilisk/wsServer/include>
 )
 
-target_link_libraries(ws
+target_link_libraries(wsserver
   PUBLIC
     Threads::Threads
 )

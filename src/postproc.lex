@@ -167,10 +167,6 @@ S__FILE__ {
   fputs ("__FILE__", yyout);
 }
 
-S__func__ {
-  fputs ("__func__", yyout);
-}
-
 S_LINENO {
   fputs (nolineno ? "0" : "__LINE__", yyout);
 }
