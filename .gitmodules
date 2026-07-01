@@ -1,3 +1,0 @@
-[submodule "third_party/gotm/gotm_submodule"]
-	path = third_party/gotm/gotm_submodule
-	url = https://github.com/gitit-testing-organization-123/gotm.git
