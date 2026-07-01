@@ -261,7 +261,7 @@ basilisk_add_ctest(bump2Dp MPI MPI_RANKS 55 LABELS short)
 basilisk_add_ctest(bump2Dp-restore SOURCE bump2Dp.c REF bump2Dp-restore.ref MPI MPI_RANKS 15 DEPENDS bump2Dp FILES_FROM_TEST bump2Dp:dump=bump2Dp-restore.dump LABELS short)
 basilisk_add_ctest(poiseuille-periodic MPI MPI_RANKS 4 LABELS short)
 basilisk_add_ctest(gfs MPI MPI_RANKS 7 LABELS short)
-basilisk_add_ctest(gfsi DEPENDS gfs FILES_FROM_TEST gfs:gfsi.gfs LABELS short)
+# basilisk_add_ctest(gfsi DEPENDS gfs FILES_FROM_TEST gfs:gfsi.gfs LABELS short) # do not have gerris view
 basilisk_add_ctest(mpi-grid MPI MPI_RANKS 4 LABELS short)
 basilisk_add_ctest(mpi-periodic-3D SOURCE periodic.c REF mpi-periodic-3D.ref MPI MPI_RANKS 8 QCC_FLAGS -grid=multigrid3D LABELS short)
 basilisk_add_ctest(source MPI MPI_RANKS 7 LABELS long)
