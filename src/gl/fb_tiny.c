@@ -396,11 +396,10 @@ void glNormal3d (GLdouble nx, GLdouble ny, GLdouble nz)
 static inline
 void shaded_color (const TinyColor * color, float shade, TinyColor * frag_color)
 {
-  unsigned char * f = &frag_color->r;
-  const unsigned char * c = &color->r;
-  for (int i = 0; i < 3; i++)
-    f[i] = shade*c[i];
-  f[3] = c[3]; // alpha channel
+  frag_color->r = shade*color->r;
+  frag_color->g = shade*color->g;
+  frag_color->b = shade*color->b;
+  frag_color->a = color->a; // alpha channel
 }
 
 static
