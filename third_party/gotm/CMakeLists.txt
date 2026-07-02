@@ -1,14 +1,18 @@
 include(ExternalProject)
 include(GNUInstallDirs)
 
-set(GOTM_PREFIX "${CMAKE_BINARY_DIR}/_deps/gotm-install"
-  CACHE PATH "GOTM install prefix")
+set(_gotm_default_prefix "${CMAKE_INSTALL_PREFIX}")
+if (DEFINED GOTM_PREFIX AND GOTM_PREFIX STREQUAL "${CMAKE_BINARY_DIR}/_deps/gotm-install")
+  set(GOTM_PREFIX "${_gotm_default_prefix}" CACHE PATH "GOTM install prefix" FORCE)
+else()
+  set(GOTM_PREFIX "${_gotm_default_prefix}" CACHE PATH "GOTM install prefix")
+endif()
 set(GOTM_SOURCE_DIR "${CMAKE_BINARY_DIR}/_deps/gotm-src"
   CACHE PATH "GOTM source tree")
 set(GOTM_LIBRARY "${GOTM_PREFIX}/lib/libgotm.a"
-  CACHE FILEPATH "GOTM static library")
-set(GOTM_INCLUDE_DIR "${GOTM_PREFIX}/${CMAKE_INSTALL_INCLUDEDIR}/gotm"
-  CACHE PATH "GOTM include directory")
+  CACHE FILEPATH "GOTM static library" FORCE)
+set(GOTM_INCLUDE_DIR "${GOTM_PREFIX}/${CMAKE_INSTALL_INCLUDEDIR}"
+  CACHE PATH "GOTM include directory" FORCE)
 set(GOTM_LIBRARY_DIR "${GOTM_PREFIX}/lib")
 
 set(GOTM_STATIC_LIBRARIES

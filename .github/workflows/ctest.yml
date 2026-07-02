@@ -75,13 +75,38 @@ jobs:
           else
             jobs="$(sysctl -n hw.logicalcpu)"
           fi
-          ctest_args=(--test-dir build/release --output-on-failure)
-          ctest_args+=(--output-junit build/release/ctest-junit.xml)
+          ctest_report="${PWD}/build/release/ctest-junit.xml"
+          rm -f "${ctest_report}"
+          ctest_args=(--test-dir build/release --output-on-failure --parallel "${jobs}")
+          ctest_args+=(--output-junit "${ctest_report}")
           ctest_args+=(-E '^facefraction3D$')
           if [[ -n "${CTEST_LABEL}" ]]; then
             ctest_args+=(-L "${CTEST_LABEL}")
           fi
+          set +e
           ctest "${ctest_args[@]}"
+          ctest_status="$?"
+          set -e
+
+          if [[ ! -s "${ctest_report}" ]]; then
+            if [[ "${ctest_status}" -eq 0 ]]; then
+              cat > "${ctest_report}" <<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="CTest" tests="0" failures="0" errors="0" skipped="0"></testsuite>
+XML
+            else
+              cat > "${ctest_report}" <<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="CTest" tests="1" failures="1" errors="0" skipped="0">
+  <testcase classname="CTest" name="ctest">
+    <failure message="CTest failed before producing a JUnit report">See the Run CTest step log for details.</failure>
+  </testcase>
+</testsuite>
+XML
+            fi
+          fi
+
+          exit "${ctest_status}"
 
       - name: Publish CTest report
         if: ${{ !cancelled() }}
