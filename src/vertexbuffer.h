@@ -35,7 +35,7 @@ static void vertex_buffer_push_index (unsigned int i)
   array_append (VertexBuffer.index, &i, sizeof(unsigned int));
 }
 
-void vertex_buffer_setup()
+void vertex_buffer_setup (void)
 {
   VertexBuffer.nvertex = 0;
   VertexBuffer.type = -1;
@@ -46,7 +46,7 @@ void vertex_buffer_setup()
   VertexBuffer.index = array_new();
 }
 
-void vertex_buffer_free()
+void vertex_buffer_free (void)
 {
   array_free (VertexBuffer.position);
   VertexBuffer.position = NULL;
@@ -109,7 +109,7 @@ static void vertex_buffer_glBegin (unsigned int state)
     glBegin (state);
 }
 
-static void vertex_buffer_glEnd()
+static void vertex_buffer_glEnd (void)
 {
   if (VertexBuffer.index) {
     int type = -1;

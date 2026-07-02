@@ -95,6 +95,12 @@ add_subdirectory(cvmix)
 
 # --- bview2D -----------------------------------------------------------------
 
+set(BVIEW_SOURCE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/bview.c"
+  "${CMAKE_CURRENT_SOURCE_DIR}/view.h"
+  "${CMAKE_CURRENT_SOURCE_DIR}/vertexbuffer.h"
+)
+
 set(BVIEW2D_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/bview2D_gen")
 file(MAKE_DIRECTORY "${BVIEW2D_GEN_DIR}")
 
@@ -111,7 +117,7 @@ add_custom_command(
     -I"${CMAKE_SOURCE_DIR}"
     "bview.c"
     -source
-  DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/bview.c" qcc
+  DEPENDS ${BVIEW_SOURCE_DEPENDS} qcc
   WORKING_DIRECTORY "${BVIEW2D_GEN_DIR}"
 )
 
@@ -153,7 +159,7 @@ add_custom_command(
     "bview.c"
     -grid=octree
     -source
-  DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/bview.c" qcc
+  DEPENDS ${BVIEW_SOURCE_DEPENDS} qcc
   WORKING_DIRECTORY "${BVIEW3D_GEN_DIR}"
 )
 
@@ -195,7 +201,7 @@ add_custom_command(
     "bview.c"
     -grid=multigrid
     -source
-  DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/bview.c" qcc
+  DEPENDS ${BVIEW_SOURCE_DEPENDS} qcc
   WORKING_DIRECTORY "${BVIEW2DM_GEN_DIR}"
 )
 
