@@ -87,27 +87,6 @@ jobs:
           ctest "${ctest_args[@]}"
           ctest_status="$?"
           set -e
-
-          if [[ ! -s "${ctest_report}" ]]; then
-            if [[ "${ctest_status}" -eq 0 ]]; then
-              cat > "${ctest_report}" <<'XML'
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="CTest" tests="0" failures="0" errors="0" skipped="0"></testsuite>
-XML
-            else
-              cat > "${ctest_report}" <<'XML'
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="CTest" tests="1" failures="1" errors="0" skipped="0">
-  <testcase classname="CTest" name="ctest">
-    <failure message="CTest failed before producing a JUnit report">See the Run CTest step log for details.</failure>
-  </testcase>
-</testsuite>
-XML
-            fi
-          fi
-
-          exit "${ctest_status}"
-
       - name: Publish CTest report
         if: ${{ !cancelled() }}
         uses: dorny/test-reporter@v3
